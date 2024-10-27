@@ -6,16 +6,28 @@ use std::io;
 use std::io::Read;
 use std::marker::PhantomData;
 use std::string::FromUtf8Error;
+use thiserror::Error;
 use crate::datastream::DataStream;
 
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum ULogError {
-    Io(io::Error),
-    Utf8(FromUtf8Error),
+    #[error("IO Error: {0}")]
+    Io(#[from] io::Error),
+
+    #[error("UTF-8 Decoding Error: {0}")]
+    Utf8(#[from] FromUtf8Error),
+
+    #[error("Format Error")]
     FormatError,
+
+    #[error("Unknown Parameter Type")]
     UnknownParameterType,
+
+    #[error("Invalid Header")]
     InvalidHeader,
-    InvalidDefinitions
+
+    #[error("Invalid Definitions")]
+    InvalidDefinitions,
 }
 
 
@@ -472,19 +484,27 @@ impl <R: Read>ULogParser <R> {
         let mut buffer:Vec<u8> = vec![0; msg_size as usize];
         datastream.read_exact(&mut buffer)?;
 
-
         let key_len = buffer[0] as usize;
+
+        // Print the buffer as hex
+        println!("Buffer in hex: {}", buffer.iter().map(|byte| format!("{:02X}", byte)).collect::<Vec<String>>().join(" "));
+
+
         let raw_key = String::from_utf8(buffer[1..1 + key_len].to_vec())?;
         let raw_value = String::from_utf8(buffer[1 + key_len..msg_size as usize].to_vec())?;
+
+        println!("raw_key: {} raw_value: {}", raw_key, raw_value);
 
         let key_parts: Vec<&str> = raw_key.split_whitespace().collect();
         if key_parts.len() < 2 {
             return Ok(false);
         }
 
+        println!("Key parts: {:?}", key_parts);
+
         let key = key_parts[1].to_string();
         let value = match key_parts[0] {
-            "char" => raw_value,
+            _ if key_parts[0].starts_with("char[")  => raw_value,
             "bool" => {
                 let val = buffer[1 + key_len] != 0;
                 val.to_string()
@@ -621,9 +641,3 @@ impl From<u8> for ULogMessageType {
 
 const ULOG_MSG_HEADER_LEN: usize = 3;
 const ULOG_INCOMPAT_FLAG0_DATA_APPENDED_MASK: u8 = 1 << 0;
-
-impl From<FromUtf8Error> for ULogError {
-    fn from(err: FromUtf8Error) -> ULogError {
-        ULogError::Utf8(err)
-    }
-}
