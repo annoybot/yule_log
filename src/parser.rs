@@ -487,44 +487,42 @@ impl <R: Read>ULogParser <R> {
         let key_len = buffer[0] as usize;
 
         // Print the buffer as hex
-        println!("Buffer in hex: {}", buffer.iter().map(|byte| format!("{:02X}", byte)).collect::<Vec<String>>().join(" "));
-
+        //println!("Buffer in hex: {}", buffer.iter().map(|byte| format!("{:02X}", byte)).collect::<Vec<String>>().join(" "));
 
         let raw_key = String::from_utf8(buffer[1..1 + key_len].to_vec())?;
-        let raw_value = String::from_utf8(buffer[1 + key_len..msg_size as usize].to_vec())?;
-
-        println!("raw_key: {} raw_value: {}", raw_key, raw_value);
 
         let key_parts: Vec<&str> = raw_key.split_whitespace().collect();
         if key_parts.len() < 2 {
             return Ok(false);
         }
 
-        println!("Key parts: {:?}", key_parts);
+        //println!("Key parts: {:?}", key_parts);
 
         let key = key_parts[1].to_string();
         let value = match key_parts[0] {
-            _ if key_parts[0].starts_with("char[")  => raw_value,
+            _ if key_parts[0].starts_with("char[") => {
+                String::from_utf8(buffer[1 + key_len..msg_size as usize].to_vec())?
+            },
             "bool" => {
                 let val = buffer[1 + key_len] != 0;
                 val.to_string()
-            }
+            },
             "uint8_t" => {
                 let val = buffer[1 + key_len] as u8;
                 val.to_string()
-            }
+            },
             "int8_t" => {
                 let val = buffer[1 + key_len] as i8;
                 val.to_string()
-            }
+            },
             "uint16_t" => {
                 let val = LittleEndian::read_u16(&buffer[1 + key_len..1 + key_len + 2]);
                 val.to_string()
-            }
+            },
             "int16_t" => {
                 let val = LittleEndian::read_i16(&buffer[1 + key_len..1 + key_len + 2]);
                 val.to_string()
-            }
+            },
             "uint32_t" => {
                 let val = LittleEndian::read_u32(&buffer[1 + key_len..1 + key_len + 4]);
                 if key.starts_with("ver_") && key.ends_with("_release") {
@@ -532,29 +530,32 @@ impl <R: Read>ULogParser <R> {
                 } else {
                     val.to_string()
                 }
-            }
+            },
             "int32_t" => {
                 let val = LittleEndian::read_i32(&buffer[1 + key_len..1 + key_len + 4]);
                 val.to_string()
-            }
+            },
             "float" => {
                 let val = LittleEndian::read_f32(&buffer[1 + key_len..1 + key_len + 4]);
                 val.to_string()
-            }
+            },
             "double" => {
                 let val = LittleEndian::read_f64(&buffer[1 + key_len..1 + key_len + 8]);
                 val.to_string()
-            }
+            },
             "uint64_t" => {
                 let val = LittleEndian::read_u64(&buffer[1 + key_len..1 + key_len + 8]);
                 val.to_string()
-            }
+            },
             "int64_t" => {
                 let val = LittleEndian::read_i64(&buffer[1 + key_len..1 + key_len + 8]);
                 val.to_string()
-            }
+            },
             _ => return Err(ULogError::FormatError),
         };
+
+
+        println!("INFO key: {}\tvalue: {}", key, value);
 
         self.info.insert(key, value);
         Ok(true)
