@@ -254,6 +254,8 @@ impl <R: Read>ULogParser <R> {
         };
 
         for field in &format.fields {
+            log::trace!("Field: {:?}", field);
+            
             // skip _padding messages which are one byte in size
             if field.field_name.starts_with("_padding") {
                 message = &message[field.array_size..];
@@ -419,10 +421,24 @@ impl <R: Read>ULogParser <R> {
         Ok(true)
     }
 
-    fn read_format(&mut self, datastream: &mut DataStream<R>, msg_size: u16) -> Result<bool, ULogError> {
-        log::trace!("Entering {}", "read_format" );
-        let mut message_buf:Vec<u8> = vec![0; msg_size as usize];
+    fn read_format(&mut self, datastream: &mut DataStream<R>, msg_size: u16) -> Result<bool, ULogError>
+    {
+        log::trace!("Entering {}", "read_format");
+        
+        // Helper function to remove a prefix from a string
+        fn remove_prefix(s: &str, prefix: &str) -> String {
+            if s.starts_with(prefix) {
+                s[prefix.len()..].to_string()
+            } else {
+                s.to_string()
+            }
+        }
+        
+        
+        let mut message_buf: Vec<u8> = vec![0; msg_size as usize];
         datastream.read_exact(&mut message_buf)?;
+        
+        log::trace!("buffer: {}", String::from_utf8_lossy(&message_buf));
 
         let str_format = String::from_utf8(message_buf)?;
         let pos = str_format.find(':').ok_or(ULogError::FormatError)?;
@@ -442,78 +458,128 @@ impl <R: Read>ULogParser <R> {
                 continue;
             }
 
-            let field_type = field_pair[0].to_string();
+            let mut field_type_str = field_pair[0].to_string();
             let field_name = field_pair[1].to_string();
+            
+            let field_type:FormatType = match field_type_str.as_str() {
+                _ if field_type_str.starts_with("int8_t") => {
+                    field_type_str = remove_prefix(&field_type_str,"int8_t");
+                    FormatType::INT8
+                }
+                _ if field_type_str.starts_with("int16_t") => {
+                    field_type_str = remove_prefix(&field_type_str, "int16_t");
+                    FormatType::INT16
+                }
+                _ if field_type_str.starts_with("int32_t") => {
+                    field_type_str = remove_prefix(&field_type_str, "int32_t");
+                    FormatType::INT32
+                }
+                _ if field_type_str.starts_with("int64_t") => {
+                    field_type_str = remove_prefix(&field_type_str, "int64_t");
+                    FormatType::INT64
+                    
+                }
+                _ if field_type_str.starts_with("uint8_t") => {
+                    field_type_str = remove_prefix(&field_type_str, "uint8_t");
+                    FormatType::UINT8
+                }
+                _ if field_type_str.starts_with("uint16_t") => {
+                    field_type_str = remove_prefix(&field_type_str, "uint16_t");
+                    FormatType::UINT16
+                }
+                _ if field_type_str.starts_with("uint32_t") => {
+                    field_type_str = remove_prefix(&field_type_str, "uint32_t");
+                    FormatType::UINT32
+                }
+                _ if field_type_str.starts_with("uint64_t") => {
+                    field_type_str = remove_prefix(&field_type_str, "uint64_t");
+                    FormatType::UINT64
+                    
+                }
+                _ if field_type_str.starts_with("double") => {
+                    field_type_str = remove_prefix(&field_type_str, "double");
+                    FormatType::DOUBLE
+                    
+                }
+                _ if field_type_str.starts_with("float") => {
+                    field_type_str = remove_prefix(&field_type_str, "float");
+                    FormatType::FLOAT
+                    
+                }
+                _ if field_type_str.starts_with("bool") => {
+                    field_type_str = remove_prefix(&field_type_str, "bool");
+                    FormatType::BOOL
+                    
+                }
+                _ if field_type_str.starts_with("char") => {
+                    field_type_str = remove_prefix(&field_type_str, "char");
+                    FormatType::CHAR
+                    
+                }
+                _ => {
+                    FormatType::OTHER
+                }
+            };
+            
+            let other_type_id = if field_type == FormatType::OTHER {
+                if field_type_str.ends_with(']') {
+                    let mut helper = field_type_str.clone();
+                    while !helper.ends_with('[') {
+                        helper.pop();
+                    }
+                    helper.pop(); // Remove the '['
+                    
 
-            let mut field = Field {
-                type_: FormatType::OTHER,
-                field_name: field_name.clone(),
-                other_type_id: String::new(),
-                array_size: 1,
+                    // Remove the ']' and everything after
+                    let field_type_parts: Vec<&str> = field_type_str.split('[').collect();
+                    field_type_str = field_type_parts[0].to_string();
+
+                    helper
+                } else {
+                    field_type_str.clone()
+                }
+            } else {
+                String::new()
             };
 
-            if field_type.starts_with("int8_t") {
-                field.type_ = FormatType::INT8;
-            } else if field_type.starts_with("int16_t") {
-                field.type_ = FormatType::INT16;
-            } else if field_type.starts_with("int32_t") {
-                field.type_ = FormatType::INT32;
-            } else if field_type.starts_with("int64_t") {
-                field.type_ = FormatType::INT64;
-            } else if field_type.starts_with("uint8_t") {
-                field.type_ = FormatType::UINT8;
-            } else if field_type.starts_with("uint16_t") {
-                field.type_ = FormatType::UINT16;
-            } else if field_type.starts_with("uint32_t") {
-                field.type_ = FormatType::UINT32;
-            } else if field_type.starts_with("uint64_t") {
-                field.type_ = FormatType::UINT64;
-            } else if field_type.starts_with("double") {
-                field.type_ = FormatType::DOUBLE;
-            } else if field_type.starts_with("float") {
-                field.type_ = FormatType::FLOAT;
-            } else if field_type.starts_with("bool") {
-                field.type_ = FormatType::BOOL;
-            } else if field_type.starts_with("char") {
-                field.type_ = FormatType::CHAR;
-            } else {
-                field.type_ = FormatType::OTHER;
-                if field_type.ends_with(']') {
-                    let mut helper = field_type.as_str();
-                    while !helper.ends_with('[') {
-                        helper = &helper[0..helper.len() - 1];
-                    }
+            let mut array_size:usize  = 1;
+            
+            // Handle array sizes
+            if let Some(pos) = field_type_str.find('[') {
+                array_size = field_type_str[pos..]
+                    .trim_start_matches('[')
+                    .trim_end_matches(']')
+                    .parse::<usize>().unwrap_or(1);
 
-                    helper = &helper[0..helper.len() - 1];
-                    field.other_type_id = helper.to_string();
-
-                    let mut field_type_chars = field_type.chars();
-                    while field_type_chars.next() != Some('[') {}
-                } else {
-                    field.other_type_id = field_type.clone();
-                }
+                field_type_str = field_type_str[..pos].to_string();
             }
+            log::trace!("field_type: {}", field_type_str);
+            
 
-            field.array_size = 1;
-            if field_type.contains('[') {
-                let array_size_str = field_type.trim_start_matches(|c| c != '[').trim_start_matches('[').trim_end_matches(']');
-                field.array_size = array_size_str.parse::<usize>().unwrap_or(1);
-            }
 
-            if field.type_ == FormatType::UINT64 && field_name == "timestamp" {
-                // skip
+            let mut field = Field {
+                type_: field_type,
+                field_name,
+                other_type_id,
+                array_size,
+            };
+
+            log::trace!("field: {:?}", field);
+            
+            if field.type_ == FormatType::UINT64 && field.field_name == "timestamp" {
+                // Skip this field
             } else {
                 format.fields.push(field);
             }
         }
 
-        log::debug!("FORMAT: {} {:?}",name, format);
-
+        log::debug!("FORMAT: {} {:?}", name, format);
         self.formats.insert(name, format);
 
-        log::trace!("Exiting {}", "read_format" );
+        log::trace!("Exiting {}", "read_format");
         Ok(true)
     }
+
 
     fn read_info(&mut self, datastream: &mut DataStream<R>, msg_size: u16) -> Result<bool, ULogError> {
         log::trace!("Entering {}", "read_info" );
