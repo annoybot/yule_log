@@ -233,6 +233,8 @@ impl <R: Read>ULogParser <R> {
         let time_val = LittleEndian::read_u64(&message[0..8]);
         timeseries.timestamps.push(time_val);
         let mut index = 0;
+        
+        // Pass the message down, skipping the first eight bytes which are taken up by the timestamp.
         self.parse_simple_data_message(timeseries, sub.format.as_ref().unwrap(), &message[8..], &mut index);
         log::trace!("Exiting {}", "parse_data_message" );
     }
@@ -240,7 +242,19 @@ impl <R: Read>ULogParser <R> {
     fn parse_simple_data_message<'a>(&'a self, timeseries: &mut Timeseries, format: &Format, mut message: &'a [u8], index: &mut usize) -> &'a [u8] {
         log::trace!("Entering {}", "parse_simple_data_message" );
 
+        // Utility fn to extract a value from `message` and to advance the buffer pointer past it.
+        fn extract_and_advance<F>( message: &mut &[u8], advance_by: usize, extractor: F, ) -> f64
+            where  F: Fn(&[u8]) -> f64,
+        {
+            let value:f64 = extractor(message);
+
+            *message = &message[advance_by..];
+
+            return value;
+        };
+
         for field in &format.fields {
+            // skip _padding messages which are one byte in size
             if field.field_name.starts_with("_padding") {
                 message = &message[field.array_size..];
                 continue;
@@ -248,21 +262,21 @@ impl <R: Read>ULogParser <R> {
 
             for _ in 0..field.array_size {
                 let value = match field.type_ {
-                    FormatType::UINT8 => message[0] as f64,
-                    FormatType::INT8 => message[0] as f64,
-                    FormatType::UINT16 => LittleEndian::read_u16(message) as f64,
-                    FormatType::INT16 => LittleEndian::read_i16(message) as f64,
-                    FormatType::UINT32 => LittleEndian::read_u32(message) as f64,
-                    FormatType::INT32 => LittleEndian::read_i32(message) as f64,
-                    FormatType::UINT64 => LittleEndian::read_u64(message) as f64,
-                    FormatType::INT64 => LittleEndian::read_i64(message) as f64,
-                    FormatType::FLOAT => LittleEndian::read_f32(message) as f64,
-                    FormatType::DOUBLE => LittleEndian::read_f64(message),
-                    FormatType::CHAR => message[0] as f64,
-                    FormatType::BOOL => if message[0] != 0 { 1.0 } else { 0.0 },
+                    FormatType::BOOL => { extract_and_advance(&mut message, size_of::<u8>(), |message| { if message[0] != 0 { 1.0 } else { 0.0 } }) },
+                    FormatType::CHAR => { extract_and_advance(&mut message, size_of::<u8>(), |message| { message[0] as f64 }) },
+                    FormatType::UINT8 => { extract_and_advance(&mut message, size_of::<u8>(), |message| { message[0] as f64 }) },
+                    FormatType::INT8 => { extract_and_advance(&mut message, size_of::<u8>(), |message| { message[0] as f64 }) },
+                    FormatType::UINT16 => { extract_and_advance(&mut message, size_of::<u16>(), |message| { LittleEndian::read_u16(message) as f64 }) },
+                    FormatType::INT16 => { extract_and_advance(&mut message, size_of::<i16>(), |message| { LittleEndian::read_i16(message) as f64 }) },
+                    FormatType::UINT32 => { extract_and_advance(&mut message, size_of::<u32>(), |message| { LittleEndian::read_u32(message) as f64 }) },
+                    FormatType::INT32 => { extract_and_advance(&mut message, size_of::<i32>(), |message| { LittleEndian::read_i32(message) as f64 }) },
+                    FormatType::UINT64 => { extract_and_advance(&mut message, size_of::<u64>(), |message| { LittleEndian::read_u64(message) as f64 }) },
+                    FormatType::INT64 => { extract_and_advance(&mut message, size_of::<i64>(), |message| { LittleEndian::read_i64(message) as f64 }) },
+                    FormatType::FLOAT => { extract_and_advance(&mut message, size_of::<f32>(), |message| { LittleEndian::read_f32(message) as f64 }) },
+                    FormatType::DOUBLE => { extract_and_advance(&mut message, size_of::<f64>(), |message| { LittleEndian::read_f64(message) as f64 }) },
                     FormatType::OTHER => {
                         let child_format = self.formats.get(&field.other_type_id).unwrap();
-                        message = &message[8..]; // skip timestamp
+                        message = &message[8..]; // Skip over timestamp.
                         message = self.parse_simple_data_message(timeseries, child_format, message, index);
                         continue;
                     }
@@ -272,8 +286,6 @@ impl <R: Read>ULogParser <R> {
                     timeseries.data[*index].1.push(value);
                     *index += 1;
                 }
-
-                message = &message[1..]; // Advance the message pointer
             }
         }
 
