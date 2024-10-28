@@ -26,6 +26,25 @@ impl<R: Read> DataStream<R> {
         }
     }
 
+    /// Skips the specified number of bytes in the underlying reader.
+    pub fn skip(&mut self, num_bytes: usize) -> Result<usize, ULogError> {
+        let mut total_skipped = 0;
+        while total_skipped < num_bytes {
+            // Calculate how many bytes remaining to skip
+            let bytes_to_skip = num_bytes - total_skipped;
+
+            // Attempt to read bytes without storing them
+            let bytes_read = self.reader.by_ref().take(bytes_to_skip as u64).read_to_end(&mut vec![]).map_err(ULogError::Io)?;
+
+            if bytes_read == 0 {
+                break; // End of stream reached
+            }
+            total_skipped += bytes_read;
+        }
+        self.num_bytes_read += total_skipped;
+        Ok(total_skipped)
+    }
+
     pub fn read_u8(&mut self) -> Result<u8, ULogError> {
         let mut buf = [0; 1];
         self.read_exact(&mut buf)?;
@@ -101,6 +120,15 @@ mod tests {
     use std::mem;
     use tempfile::tempfile;
 
+    fn write_record<W: Write>(writer: &mut W, type_name: &str, length: u32, value_bytes: &[u8]) -> std::io::Result<()> {
+        let mut type_name_bytes = [0u8; 4];
+        type_name_bytes[..type_name.len()].copy_from_slice(type_name.as_bytes());
+        writer.write_all(&type_name_bytes)?;
+        writer.write_all(&length.to_le_bytes())?;
+        writer.write_all(value_bytes)?;
+        Ok(())
+    }
+
     #[test]
     // Test the DataStream read functions with a temporary file.
     // The file contains a record for each supported type, with the following format:
@@ -110,14 +138,7 @@ mod tests {
     // First we create a temporary file and write the records, then we read them back and verify
     // that the data matches.
     fn test_datastream_read() -> Result<(), ULogError> {
-        fn write_record<W: Write>(writer: &mut W, type_name: &str, length: u32, value_bytes: &[u8]) -> std::io::Result<()> {
-            let mut type_name_bytes = [0u8; 4];
-            type_name_bytes[..type_name.len()].copy_from_slice(type_name.as_bytes());
-            writer.write_all(&type_name_bytes)?;
-            writer.write_all(&length.to_le_bytes())?;
-            writer.write_all(value_bytes)?;
-            Ok(())
-        }
+
 
         let mut file = tempfile().unwrap();
 
@@ -199,6 +220,48 @@ mod tests {
         for _ in 0..11 {
             read_record(&mut datastream)?;
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_datastream_skip() -> Result<(), ULogError> {
+        let mut file = tempfile().unwrap();
+
+        // Write some records to the file
+        write_record(&mut file, "u8", mem::size_of::<u8>() as u32, &[42u8]).unwrap();
+        write_record(&mut file, "i8", mem::size_of::<i8>() as u32, &[42i8 as u8]).unwrap();
+        write_record(&mut file, "u16", mem::size_of::<u16>() as u32, &42u16.to_le_bytes()).unwrap();
+        write_record(&mut file, "f32", mem::size_of::<f32>() as u32, &42.0f32.to_le_bytes()).unwrap();
+
+        file.flush().unwrap();
+        file.seek(SeekFrom::Start(0)).unwrap();
+
+        let mut datastream = DataStream::new(file);
+
+        // Skip the first record (4 bytes for type name + 4 bytes for length + 1 byte for u8)
+        let skipped_bytes = datastream.skip(9)?; // 4 + 4 + 1 = 9
+        assert_eq!(skipped_bytes, 9);
+
+        // Read the next record, which should be the i8 record now
+        let type_name = datastream.read_string(4)?.trim_end_matches('\0').to_string();
+        let length = datastream.read_u32()? as usize;
+
+        assert_eq!(type_name, "i8");
+        assert_eq!(length, mem::size_of::<i8>());
+        assert_eq!(datastream.read_i8()?, 42);
+
+        // Skip the next record
+        let skipped_bytes = datastream.skip(10)?; // 4 + 4 + 2 = 10 (u16 record)
+        assert_eq!(skipped_bytes, 10);
+
+        // Read the next record, which should be the f32 record now
+        let type_name = datastream.read_string(4)?.trim_end_matches('\0').to_string();
+        let length = datastream.read_u32()? as usize;
+
+        assert_eq!(type_name, "f32");
+        assert_eq!(length, mem::size_of::<f32>());
+        assert_eq!(datastream.read_f32()?, 42.0);
 
         Ok(())
     }
