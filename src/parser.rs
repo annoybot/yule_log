@@ -195,23 +195,33 @@ impl <R: Read>ULogParser <R> {
                 _ => {}
             }
 
-            // Read the next message header.
-            message_header = parser.read_message_header(&mut datastream)?;
+            // Read the next message header.  Receiving None indicates EOF.
+            message_header = match parser.read_message_header(&mut datastream)? {
+                None => break,
+                Some(header) => header
+            }
         }
 
         log::trace!("Exiting {}", "ULogParser::new" );
         Ok(parser)
     }
 
-    fn read_message_header(&mut self, datastream: &mut DataStream<R>) -> Result<ULogMessageHeader, ULogError> {
-        log::trace!("Entering {}", "read_message_header" );
+    fn read_message_header(&mut self, datastream: &mut DataStream<R>) -> Result<Option<ULogMessageHeader>, ULogError> {
+        log::trace!("Entering {} at index {}", "read_message_header", datastream.num_bytes_read );
 
         let msg_size = datastream.read_u16()?;
+
+        // ⚠️This is the only place where we check for EOF when calling a datastream read method.
+        // If we encounter EOF anywhere else, it counts as a ture 'Unexpected EOF' and is treated as an error.
+        if datastream.eof {
+            return Ok(None);
+        }
+
         let msg_type = ULogMessageType::from(datastream.read_u8()?);
         log::trace!("MSG HEADER: {} {:?}", msg_size, msg_type);
 
         log::trace!("Exiting {}", "read_message_header" );
-        Ok(ULogMessageHeader { msg_size, msg_type })
+        Ok( Some(ULogMessageHeader { msg_size, msg_type } ))
     }
 
     fn parse_data_message(&self, sub: &Subscription, message: &[u8], timeseries_map: &mut HashMap<String, Timeseries>) {
@@ -220,7 +230,7 @@ impl <R: Read>ULogParser <R> {
 
         let str_format = String::from_utf8_lossy(&message);
         log::trace!("buffer: {}", str_format);
-        
+
         let mut other_fields_count = 0;
         let mut ts_name = sub.message_name.clone();
 
@@ -266,13 +276,16 @@ impl <R: Read>ULogParser <R> {
             log::trace!("Field: {:?}", field);
 
             let is_last_field = i == format.fields.len() - 1;
-            
+
             // Skip _padding messages when they appear at the end of the list of fields.
-            if field.field_name.starts_with("_padding")  && is_last_field {
-               // message = &message[field.array_size..];
-               continue;
+            if field.field_name.starts_with("_padding")  {
+                if is_last_field {
+                    continue
+                } else {
+                    message = &message[field.array_size..];
+                }
             }
-            
+
             // ⚠️This is a hack to get around the fact that the timestamp has already been read in parse_data_message()
             // The PlotJuggler code makes an usupported assumption tha tht timestamp is always the first field.
             if field.field_name == "timestamp" {
@@ -332,7 +345,7 @@ impl <R: Read>ULogParser <R> {
                     } else {
                         String::new()
                     };
-                    
+
                     match &field.type_ {
                         FormatType::OTHER(type_name) => {
                             let child_format = formats.get(type_name).unwrap();
@@ -373,7 +386,10 @@ impl <R: Read>ULogParser <R> {
         log::trace!("Entering {}", "read_file_definitions" );
 
         loop {
-            let message_header = self.read_message_header(datastream)?;
+            let message_header = match self.read_message_header(datastream)? {
+                None => { return Err(ULogError::UnexpectedEndOfFile) }
+                Some(value) => value
+            };
 
             match message_header.msg_type {
                 ULogMessageType::FLAG_BITS => {

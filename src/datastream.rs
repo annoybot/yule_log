@@ -1,5 +1,5 @@
 use byteorder::{ByteOrder, LittleEndian};
-use std::io::{Read};
+use std::io::{Error, ErrorKind, Read};
 use crate::parser::ULogError;
 
 #[derive(Debug)]
@@ -7,16 +7,24 @@ pub struct DataStream<R: Read> {
     reader: R,
     pub(crate) num_bytes_read:usize,
     pub(crate) max_bytes_to_read: Option<usize>,
+    pub(crate) eof: bool,
 }
 
 impl<R: Read> DataStream<R> {
     pub fn new(reader: R) -> DataStream<R> {
-        DataStream { reader, num_bytes_read: 0, max_bytes_to_read: None }
+        DataStream { reader, num_bytes_read: 0, max_bytes_to_read: None, eof: false }
     }
 
-    pub fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), ULogError> {
+    pub fn read_exact(&mut self, buf: &mut [u8]) -> Result<usize, ULogError> {
         self.num_bytes_read += buf.len();
-        self.reader.read_exact(buf).map_err(ULogError::Io)
+        match self.reader.read_exact(buf) {
+            Ok(_) => Ok( buf.len() ),
+            Err(err) => match err.kind() {
+                // Eof is not technically an error, so signal it by reporting 0 bytes read and setting eof true.
+                ErrorKind::UnexpectedEof => { self.eof = true; Ok(0) },
+                _ => Err(ULogError::Io(err)),
+            }
+        }
     }
 
     pub fn should_read(&self) -> bool {
