@@ -32,7 +32,7 @@ pub enum ULogError {
 
     #[error("Unexpected End of File")]
     UnexpectedEndOfFile,
-    
+
     #[error("Parse error Error: {0}")]
     ParseError(String)
 }
@@ -59,7 +59,6 @@ pub enum FormatType {
 pub struct Field {
     pub field_name: String,
     pub(crate) type_: FormatType,
-    pub other_type_id: String,
     pub array_size: usize,
 }
 
@@ -322,12 +321,15 @@ impl <R: Read>ULogParser <R> {
                     } else {
                         String::new()
                     };
-
-                    if let FormatType::OTHER(_) = field.type_ {
-                        timeseries.data.push((format!("{}{}", new_prefix, array_suffix), Vec::new()));
-                    } else {
-                        let child_format = formats.get(&field.other_type_id).unwrap();
-                        append_vector(child_format, &format!("{}{}", new_prefix, array_suffix), timeseries, formats);
+                    
+                    match &field.type_ {
+                        FormatType::OTHER(type_name) => {
+                            let child_format = formats.get(type_name).unwrap();
+                            append_vector(child_format, &format!("{}{}", new_prefix, array_suffix), timeseries, formats);
+                        }
+                        _ => {
+                            timeseries.data.push((format!("{}{}", new_prefix, array_suffix), Vec::new()));
+                        }
                     }
                 }
             }
@@ -430,7 +432,7 @@ impl <R: Read>ULogParser <R> {
         Ok(true)
     }
 
-   
+
 
     fn read_info(&mut self, datastream: &mut DataStream<R>, msg_size: u16) -> Result<bool, ULogError> {
         log::trace!("Entering {}", "read_info" );

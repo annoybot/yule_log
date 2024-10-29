@@ -72,13 +72,12 @@ pub(crate) fn parse_field(token_list: &mut TokenList) -> Result<Field, ULogError
     Ok( Field {
         field_name,
         type_: type_name,
-        other_type_id: "".to_string(),
         array_size,
     } )
 }
 
-fn parse_format_type(field_type_str: &str) -> FormatType {
-    match field_type_str {
+fn parse_format_type(field_type: &str) -> FormatType {
+    match field_type {
         "int8_t" => FormatType::INT8,
         "int16_t" => FormatType::INT16,
         "int32_t" => FormatType::INT32,
@@ -91,7 +90,7 @@ fn parse_format_type(field_type_str: &str) -> FormatType {
         "float" => FormatType::FLOAT,
         "bool" => FormatType::BOOL,
         "char" => FormatType::CHAR,
-        _ => FormatType::OTHER(field_type_str.to_string()),
+        _ => FormatType::OTHER(field_type.to_string()),
     }
 }
 
@@ -122,19 +121,16 @@ mod tests {
                 Field {
                     field_name: "timestamp".to_string(),
                     type_: FormatType::UINT64,
-                    other_type_id: "".to_string(),
                     array_size: 1, // assuming non-array type for uint64_t
                 },
                 Field {
                     field_name: "is_happy".to_string(),
                     type_: FormatType::BOOL,
-                    other_type_id: "".to_string(),
                     array_size: 1, // assuming non-array type for bool
                 },
                 Field {
                     field_name: "pet_ids".to_string(),
                     type_: FormatType::UINT8,
-                    other_type_id: "".to_string(),
                     array_size: 8, // as defined in the input string
                 },
             ],
