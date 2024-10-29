@@ -251,7 +251,6 @@ impl <R: Read>ULogParser <R> {
 
     fn parse_simple_data_message<'a>(&'a self, timeseries: &mut Timeseries, format: &Format, mut message: &'a [u8], index: &mut usize) -> &'a [u8] {
         log::trace!("Entering {}", "parse_simple_data_message" );
-        log::trace!("buf {}", String::from_utf8_lossy(&message) );
         // Utility fn to extract a value from `message` and to advance the buffer pointer past it.
         fn extract_and_advance<F>( message: &mut &[u8], advance_by: usize, extractor: F, ) -> f64
             where  F: Fn(&[u8]) -> f64,
@@ -263,12 +262,20 @@ impl <R: Read>ULogParser <R> {
             return value;
         }
 
-        for field in &format.fields {
+        for (i,field) in format.fields.iter().enumerate() {
             log::trace!("Field: {:?}", field);
+
+            let is_last_field = i == format.fields.len() - 1;
             
-            // skip _padding messages which are one byte in size
-            if field.field_name.starts_with("_padding") {
-                message = &message[field.array_size..];
+            // Skip _padding messages when they appear at the end of the list of fields.
+            if field.field_name.starts_with("_padding")  && is_last_field {
+               // message = &message[field.array_size..];
+               continue;
+            }
+            
+            // ⚠️This is a hack to get around the fact that the timestamp has already been read in parse_data_message()
+            // The PlotJuggler code makes an usupported assumption tha tht timestamp is always the first field.
+            if field.field_name == "timestamp" {
                 continue;
             }
 
