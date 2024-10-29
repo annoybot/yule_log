@@ -8,6 +8,7 @@ use std::marker::PhantomData;
 use std::string::FromUtf8Error;
 use thiserror::Error;
 use crate::datastream::DataStream;
+use crate::formats::parse_format;
 
 #[derive(Error, Debug)]
 pub enum ULogError {
@@ -28,10 +29,16 @@ pub enum ULogError {
 
     #[error("Invalid Definitions")]
     InvalidDefinitions,
+
+    #[error("Unexpected End of File")]
+    UnexpectedEndOfFile,
+    
+    #[error("Parse error Error: {0}")]
+    ParseError(String)
 }
 
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FormatType {
     UINT8,
     UINT16,
@@ -45,13 +52,13 @@ pub enum FormatType {
     DOUBLE,
     BOOL,
     CHAR,
-    OTHER
+    OTHER(String),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Field {
-    type_: FormatType,
     pub field_name: String,
+    pub(crate) type_: FormatType,
     pub other_type_id: String,
     pub array_size: usize,
 }
@@ -66,7 +73,7 @@ pub struct Parameter {
 #[derive(Debug)]
 pub enum ParameterValue { Int(i32), Real(f32) }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Format {
     pub name: String,
     pub fields: Vec<Field>,
@@ -101,7 +108,7 @@ pub struct ULogParser<R:Read> {
     //data_section_start: usize,
     //read_until_file_position: i64,
     overridden_params: HashSet<String>,
-    formats: HashMap<String, Format>,
+    pub(crate) formats: HashMap<String, Format>,
     info: HashMap<String, String>,
     subscriptions: HashMap<u16, Subscription>,
     //timeseries: HashMap<String, Timeseries>,
@@ -216,7 +223,7 @@ impl <R: Read>ULogParser <R> {
 
         if let Some(format) = &sub.format {
             for field in &format.fields {
-                if field.type_ == FormatType::OTHER {
+                if let FormatType::OTHER(_) = field.type_ {
                     other_fields_count += 1;
                 }
             }
@@ -251,7 +258,7 @@ impl <R: Read>ULogParser <R> {
             *message = &message[advance_by..];
 
             return value;
-        };
+        }
 
         for field in &format.fields {
             log::trace!("Field: {:?}", field);
@@ -263,7 +270,7 @@ impl <R: Read>ULogParser <R> {
             }
 
             for _ in 0..field.array_size {
-                let value = match field.type_ {
+                let value = match &field.type_ {
                     FormatType::BOOL => { extract_and_advance(&mut message, size_of::<u8>(), |message| { if message[0] != 0 { 1.0 } else { 0.0 } }) },
                     FormatType::CHAR => { extract_and_advance(&mut message, size_of::<u8>(), |message| { message[0] as f64 }) },
                     FormatType::UINT8 => { extract_and_advance(&mut message, size_of::<u8>(), |message| { message[0] as f64 }) },
@@ -276,15 +283,15 @@ impl <R: Read>ULogParser <R> {
                     FormatType::INT64 => { extract_and_advance(&mut message, size_of::<i64>(), |message| { LittleEndian::read_i64(message) as f64 }) },
                     FormatType::FLOAT => { extract_and_advance(&mut message, size_of::<f32>(), |message| { LittleEndian::read_f32(message) as f64 }) },
                     FormatType::DOUBLE => { extract_and_advance(&mut message, size_of::<f64>(), |message| { LittleEndian::read_f64(message) as f64 }) },
-                    FormatType::OTHER => {
-                        let child_format = self.formats.get(&field.other_type_id).unwrap();
+                    FormatType::OTHER(type_id) => {
+                        let child_format = self.formats.get(type_id).unwrap();
                         message = &message[8..]; // Skip over timestamp.
                         message = self.parse_simple_data_message(timeseries, child_format, message, index);
                         continue;
                     }
                 };
 
-                if field.type_ != FormatType::OTHER {
+                if let FormatType::OTHER(_) = field.type_ {
                     timeseries.data[*index].1.push(value);
                     *index += 1;
                 }
@@ -316,7 +323,7 @@ impl <R: Read>ULogParser <R> {
                         String::new()
                     };
 
-                    if field.type_ != FormatType::OTHER {
+                    if let FormatType::OTHER(_) = field.type_ {
                         timeseries.data.push((format!("{}{}", new_prefix, array_suffix), Vec::new()));
                     } else {
                         let child_format = formats.get(&field.other_type_id).unwrap();
@@ -360,7 +367,9 @@ impl <R: Read>ULogParser <R> {
                     self.read_flag_bits(datastream, message_header.msg_size)?;
                 }
                 ULogMessageType::FORMAT => {
-                    self.read_format(datastream, message_header.msg_size)?;
+                    let format = parse_format(datastream, message_header.msg_size)?;
+
+                    self.formats.insert(format.name.clone(), format);
                 }
                 ULogMessageType::PARAMETER => {
                     self.read_parameter(datastream, message_header.msg_size)?;
@@ -421,165 +430,7 @@ impl <R: Read>ULogParser <R> {
         Ok(true)
     }
 
-    fn read_format(&mut self, datastream: &mut DataStream<R>, msg_size: u16) -> Result<bool, ULogError>
-    {
-        log::trace!("Entering {}", "read_format");
-        
-        // Helper function to remove a prefix from a string
-        fn remove_prefix(s: &str, prefix: &str) -> String {
-            if s.starts_with(prefix) {
-                s[prefix.len()..].to_string()
-            } else {
-                s.to_string()
-            }
-        }
-        
-        
-        let mut message_buf: Vec<u8> = vec![0; msg_size as usize];
-        datastream.read_exact(&mut message_buf)?;
-        
-        log::trace!("buffer: {}", String::from_utf8_lossy(&message_buf));
-
-        let str_format = String::from_utf8(message_buf)?;
-        let pos = str_format.find(':').ok_or(ULogError::FormatError)?;
-
-        let name = str_format[0..pos].to_string();
-        let fields_str = &str_format[pos + 1..];
-
-        let mut format = Format {
-            name: name.clone(),
-            fields: Vec::new(),
-            padding: 0,
-        };
-
-        for field_section in fields_str.split(';') {
-            let field_pair: Vec<&str> = field_section.split_whitespace().collect();
-            if field_pair.len() != 2 {
-                continue;
-            }
-
-            let mut field_type_str = field_pair[0].to_string();
-            let field_name = field_pair[1].to_string();
-            
-            let field_type:FormatType = match field_type_str.as_str() {
-                _ if field_type_str.starts_with("int8_t") => {
-                    field_type_str = remove_prefix(&field_type_str,"int8_t");
-                    FormatType::INT8
-                }
-                _ if field_type_str.starts_with("int16_t") => {
-                    field_type_str = remove_prefix(&field_type_str, "int16_t");
-                    FormatType::INT16
-                }
-                _ if field_type_str.starts_with("int32_t") => {
-                    field_type_str = remove_prefix(&field_type_str, "int32_t");
-                    FormatType::INT32
-                }
-                _ if field_type_str.starts_with("int64_t") => {
-                    field_type_str = remove_prefix(&field_type_str, "int64_t");
-                    FormatType::INT64
-                    
-                }
-                _ if field_type_str.starts_with("uint8_t") => {
-                    field_type_str = remove_prefix(&field_type_str, "uint8_t");
-                    FormatType::UINT8
-                }
-                _ if field_type_str.starts_with("uint16_t") => {
-                    field_type_str = remove_prefix(&field_type_str, "uint16_t");
-                    FormatType::UINT16
-                }
-                _ if field_type_str.starts_with("uint32_t") => {
-                    field_type_str = remove_prefix(&field_type_str, "uint32_t");
-                    FormatType::UINT32
-                }
-                _ if field_type_str.starts_with("uint64_t") => {
-                    field_type_str = remove_prefix(&field_type_str, "uint64_t");
-                    FormatType::UINT64
-                    
-                }
-                _ if field_type_str.starts_with("double") => {
-                    field_type_str = remove_prefix(&field_type_str, "double");
-                    FormatType::DOUBLE
-                    
-                }
-                _ if field_type_str.starts_with("float") => {
-                    field_type_str = remove_prefix(&field_type_str, "float");
-                    FormatType::FLOAT
-                    
-                }
-                _ if field_type_str.starts_with("bool") => {
-                    field_type_str = remove_prefix(&field_type_str, "bool");
-                    FormatType::BOOL
-                    
-                }
-                _ if field_type_str.starts_with("char") => {
-                    field_type_str = remove_prefix(&field_type_str, "char");
-                    FormatType::CHAR
-                    
-                }
-                _ => {
-                    FormatType::OTHER
-                }
-            };
-            
-            let other_type_id = if field_type == FormatType::OTHER {
-                if field_type_str.ends_with(']') {
-                    let mut helper = field_type_str.clone();
-                    while !helper.ends_with('[') {
-                        helper.pop();
-                    }
-                    helper.pop(); // Remove the '['
-                    
-
-                    // Remove the ']' and everything after
-                    let field_type_parts: Vec<&str> = field_type_str.split('[').collect();
-                    field_type_str = field_type_parts[0].to_string();
-
-                    helper
-                } else {
-                    field_type_str.clone()
-                }
-            } else {
-                String::new()
-            };
-
-            let mut array_size:usize  = 1;
-            
-            // Handle array sizes
-            if let Some(pos) = field_type_str.find('[') {
-                array_size = field_type_str[pos..]
-                    .trim_start_matches('[')
-                    .trim_end_matches(']')
-                    .parse::<usize>().unwrap_or(1);
-
-                field_type_str = field_type_str[..pos].to_string();
-            }
-            log::trace!("field_type: {}", field_type_str);
-            
-
-
-            let mut field = Field {
-                type_: field_type,
-                field_name,
-                other_type_id,
-                array_size,
-            };
-
-            log::trace!("field: {:?}", field);
-            
-            if field.type_ == FormatType::UINT64 && field.field_name == "timestamp" {
-                // Skip this field
-            } else {
-                format.fields.push(field);
-            }
-        }
-
-        log::debug!("FORMAT: {} {:?}", name, format);
-        self.formats.insert(name, format);
-
-        log::trace!("Exiting {}", "read_format");
-        Ok(true)
-    }
-
+   
 
     fn read_info(&mut self, datastream: &mut DataStream<R>, msg_size: u16) -> Result<bool, ULogError> {
         log::trace!("Entering {}", "read_info" );
