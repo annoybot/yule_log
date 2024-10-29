@@ -94,6 +94,15 @@ fn parse_format_type(field_type: &str) -> FormatType {
     }
 }
 
+impl FormatType {
+    pub(crate) fn is_other(&self) -> bool {
+        match self {
+            FormatType::OTHER(_) => true,
+            _ => false
+        }
+    }
+}
+
 
 #[cfg(test)]
 mod tests {

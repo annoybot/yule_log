@@ -217,12 +217,16 @@ impl <R: Read>ULogParser <R> {
     fn parse_data_message(&self, sub: &Subscription, message: &[u8], timeseries_map: &mut HashMap<String, Timeseries>) {
         log::trace!("Entering {}", "parse_data_message" );
         let message = message.to_vec();
+
+        let str_format = String::from_utf8_lossy(&message);
+        log::trace!("buffer: {}", str_format);
+        
         let mut other_fields_count = 0;
         let mut ts_name = sub.message_name.clone();
 
         if let Some(format) = &sub.format {
             for field in &format.fields {
-                if let FormatType::OTHER(_) = field.type_ {
+                if field.type_.is_other() {
                     other_fields_count += 1;
                 }
             }
@@ -247,7 +251,7 @@ impl <R: Read>ULogParser <R> {
 
     fn parse_simple_data_message<'a>(&'a self, timeseries: &mut Timeseries, format: &Format, mut message: &'a [u8], index: &mut usize) -> &'a [u8] {
         log::trace!("Entering {}", "parse_simple_data_message" );
-
+        log::trace!("buf {}", String::from_utf8_lossy(&message) );
         // Utility fn to extract a value from `message` and to advance the buffer pointer past it.
         fn extract_and_advance<F>( message: &mut &[u8], advance_by: usize, extractor: F, ) -> f64
             where  F: Fn(&[u8]) -> f64,
@@ -290,7 +294,7 @@ impl <R: Read>ULogParser <R> {
                     }
                 };
 
-                if let FormatType::OTHER(_) = field.type_ {
+                if !field.type_.is_other() {
                     timeseries.data[*index].1.push(value);
                     *index += 1;
                 }
