@@ -338,7 +338,7 @@ impl <R: Read>ULogParser <R> {
                     continue;
                 }
 
-                let new_prefix = format!("{} / {}", prefix, field.field_name);
+                let new_prefix = format!("{}/{}", prefix, field.field_name);
                 for i in 0..field.array_size {
                     let array_suffix = if field.array_size > 1 {
                         format!(".{:02}", i)
@@ -359,7 +359,7 @@ impl <R: Read>ULogParser <R> {
             }
         }
 
-        append_vector(format, "", &mut timeseries, &self.formats);
+        append_vector(format, format.name.as_str(), &mut timeseries, &self.formats);
 
         log::trace!("Exiting {}", "create_timeseries" );
         timeseries
