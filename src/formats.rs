@@ -1,7 +1,7 @@
-use crate::tokenizer::{tokenize, Token};
+use crate::tokenizer::Token;
 use std::io::Read;
 use crate::datastream::DataStream;
-use crate::parser::{Field, Format, FormatType, ULogError, ULogParser};
+use crate::parser::{Field, Format, FormatType, ULogError};
 use crate::tokenizer::TokenList;
 
 pub(crate) fn parse_format<R: Read>(datastream: &mut DataStream<R>, msg_size: u16) -> Result<Format, ULogError>

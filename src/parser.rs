@@ -103,14 +103,10 @@ pub struct Timeseries {
 pub struct ULogParser<R:Read> {
     file_start_time: u64,
     parameters: Vec<Parameter>,
-    //read_buffer: Vec<u8>,
-    //data_section_start: usize,
-    //read_until_file_position: i64,
     overridden_params: HashSet<String>,
     pub(crate) formats: HashMap<String, Format>,
     info: HashMap<String, String>,
     subscriptions: HashMap<u16, Subscription>,
-    //timeseries: HashMap<String, Timeseries>,
     message_name_with_multi_id: HashSet<String>,
     message_logs: Vec<MessageLog>,
     _phantom: PhantomData<R>,
@@ -123,14 +119,10 @@ impl <R: Read>ULogParser <R> {
         let mut parser = ULogParser {
             file_start_time: 0,
             parameters: Vec::new(),
-            //read_buffer: Vec::new(),
-            //data_section_start: 0,
-            //read_until_file_position: 1 << 60,
             overridden_params: HashSet::new(),
             formats: HashMap::new(),
             info: HashMap::new(),
             subscriptions: HashMap::new(),
-            //timeseries: HashMap::new(),
             message_name_with_multi_id: HashSet::new(),
             message_logs: Vec::new(),
             _phantom: PhantomData,
@@ -202,6 +194,8 @@ impl <R: Read>ULogParser <R> {
             }
         }
 
+        log::trace!("Timeseries {:?}", timeseries_map);
+        
         log::trace!("Exiting {}", "ULogParser::new" );
         Ok(parser)
     }
@@ -230,21 +224,12 @@ impl <R: Read>ULogParser <R> {
 
         let str_format = String::from_utf8_lossy(&message);
         log::trace!("buffer: {}", str_format);
-
-        let mut other_fields_count = 0;
+        
         let mut ts_name = sub.message_name.clone();
-
-        if let Some(format) = &sub.format {
-            for field in &format.fields {
-                if field.type_.is_other() {
-                    other_fields_count += 1;
-                }
-            }
-        }
-
+        
+        // Append two `.00, .01, .02` to multi id field names.
         if self.message_name_with_multi_id.contains(&ts_name) {
-            let buff = format!(".{:02}", sub.multi_id);
-            ts_name.push_str(&buff);
+            ts_name.push_str(&format!(".{:02}", sub.multi_id));
         }
 
         let timeseries = timeseries_map.entry(ts_name.clone())
@@ -412,7 +397,7 @@ impl <R: Read>ULogParser <R> {
                     self.read_info(datastream, message_header.msg_size)?;
                 }
                 ULogMessageType::INFO_MULTIPLE | ULogMessageType::PARAMETER_DEFAULT => {
-                    datastream.skip(message_header.msg_size as usize);
+                    datastream.skip(message_header.msg_size as usize)?;
                 }
                 ULogMessageType::UNKNOWN => {
                     //log::debug!("Warning: Unknown ULogMessageType. Skipping.");

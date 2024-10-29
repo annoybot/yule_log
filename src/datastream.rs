@@ -1,5 +1,5 @@
 use byteorder::{ByteOrder, LittleEndian};
-use std::io::{Error, ErrorKind, Read};
+use std::io::{ErrorKind, Read};
 use crate::parser::ULogError;
 
 #[derive(Debug)]

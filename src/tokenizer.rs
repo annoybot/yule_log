@@ -9,6 +9,7 @@ lazy_static! {
 pub struct TokenList(Vec<Token>);
 
 impl TokenList {
+    #[allow(dead_code)]
     pub fn new(tokens: Vec<Token>) -> Self {
         TokenList(tokens)
     }
@@ -80,13 +81,13 @@ pub fn tokenize(input: &str) -> Vec<Token> {
             tokens.push(Token::Identifier(identifier.as_str().to_string()));
         } else if let Some(number) = caps.name("number") {
             tokens.push(Token::Number(number.as_str().parse::<usize>().unwrap()));
-        } else if let Some(colon) = caps.name("colon") {
+        } else if let Some(_) = caps.name("colon") {
             tokens.push(Token::Colon);
-        } else if let Some(colon) = caps.name("semicolon") {
+        } else if let Some(_) = caps.name("semicolon") {
             tokens.push(Token::Semicolon);
-        } else if let Some(colon) = caps.name("lbrace") {
+        } else if let Some(_) = caps.name("lbrace") {
             tokens.push(Token::LBrace);
-        } else if let Some(colon) = caps.name("rbrace") {
+        } else if let Some(_) = caps.name("rbrace") {
             tokens.push(Token::RBrace);
         } else if let Some(unknown) = caps.name("unknown") {
             tokens.push(Token::Unknown(unknown.as_str().parse::<char>().unwrap()));
@@ -94,13 +95,6 @@ pub fn tokenize(input: &str) -> Vec<Token> {
     }
 
     tokens
-}
-
-
-fn remove_prefix(s: &mut String, prefix: &str) {
-    if s.starts_with(prefix) {
-        s.drain(0..prefix.len());
-    }
 }
 
 #[cfg(test)]
