@@ -10,6 +10,7 @@ use thiserror::Error;
 use crate::datastream::DataStream;
 use crate::formats::parse_format;
 use core::mem::size_of;
+use crate::timeseries::{Timeseries, TimeseriesMap};
 
 #[derive(Error, Debug)]
 pub enum ULogError {
@@ -95,11 +96,6 @@ pub struct Subscription {
     pub format: Option<Format>,
 }
 
-#[derive(Debug)]
-pub struct Timeseries {
-    pub timestamps: Vec<u64>,
-    pub data: Vec<(String, Vec<f64>)>,
-}
 
 pub struct ULogParser<R:Read> {
     file_start_time: u64,
@@ -115,7 +111,7 @@ pub struct ULogParser<R:Read> {
 }
 
 impl <R: Read>ULogParser <R> {
-    pub fn new(mut datastream: DataStream<R>, timeseries_map: &mut HashMap<String, Timeseries>) -> Result<ULogParser<R>, ULogError> {
+    pub fn new(mut datastream: DataStream<R>, timeseries_map: &mut TimeseriesMap) -> Result<ULogParser<R>, ULogError> {
         let mut parser = ULogParser {
             file_start_time: 0,
             parameters: Vec::new(),
@@ -215,7 +211,7 @@ impl <R: Read>ULogParser <R> {
         Ok( Some(ULogMessageHeader { msg_size, msg_type } ))
     }
 
-    fn parse_data_message(&self, sub: &Subscription, message: &[u8], timeseries_map: &mut HashMap<String, Timeseries>) {
+    fn parse_data_message(&self, sub: &Subscription, message: &[u8], timeseries_map: &mut TimeseriesMap) {
         let message = message.to_vec();
 
         let mut ts_name = sub.message_name.clone();
