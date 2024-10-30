@@ -238,6 +238,7 @@ impl <R: Read>ULogParser <R> {
 
         let time_val = LittleEndian::read_u64(&message[0..8]);
         timeseries.timestamps.push(time_val);
+
         let mut index = 0;
         
         // Pass the message down, skipping the first eight bytes which are taken up by the timestamp.
@@ -274,9 +275,9 @@ impl <R: Read>ULogParser <R> {
 
             // ⚠️This is a hack to get around the fact that the timestamp has already been read in parse_data_message()
             // The PlotJuggler code makes an unsupported assumption that the timestamp is always the first field.
-            if field.field_name == "timestamp" {
-                continue;
-            }
+            //if field.field_name == "timestamp" {
+            //    continue;
+            //}
 
             for _ in 0..field.array_size {
                 let value = match &field.type_ {
@@ -383,7 +384,12 @@ impl <R: Read>ULogParser <R> {
                     self.read_flag_bits(datastream, message_header.msg_size)?;
                 }
                 ULogMessageType::FORMAT => {
-                    let format = parse_format(datastream, message_header.msg_size)?;
+                    let mut format = parse_format(datastream, message_header.msg_size)?;
+
+                    // ⚠️ Remove the timestamp field.  We don't end up needing it in the Timeseries data structure.
+                    format.fields = format.fields.into_iter()
+                        .filter(|f| f.field_name != "timestamp")
+                        .collect();
 
                     self.formats.insert(format.name.clone(), format);
                 }
