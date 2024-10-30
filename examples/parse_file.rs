@@ -15,7 +15,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>>  {
 
     let mut timeseries_map: HashMap<String, Timeseries> = HashMap::new();
 
-    let file = File::open("data/sample_log_small.ulg").map_err(|e| {
+    let file = File::open("data/powers.ulg").map_err(|e| {
         eprintln!("Failed to open file: {}", e);
         e
     })?;

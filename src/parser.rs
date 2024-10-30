@@ -9,6 +9,7 @@ use std::string::FromUtf8Error;
 use thiserror::Error;
 use crate::datastream::DataStream;
 use crate::formats::parse_format;
+use core::mem::size_of;
 
 #[derive(Error, Debug)]
 pub enum ULogError {
@@ -194,8 +195,8 @@ impl <R: Read>ULogParser <R> {
             }
         }
 
-        log::trace!("Timeseries {:?}", timeseries_map);
-        
+        log::debug!("Timeseries {:?}", timeseries_map);
+
         log::trace!("Exiting {}", "ULogParser::new" );
         Ok(parser)
     }
@@ -224,9 +225,9 @@ impl <R: Read>ULogParser <R> {
 
         let str_format = String::from_utf8_lossy(&message);
         log::trace!("buffer: {}", str_format);
-        
+
         let mut ts_name = sub.message_name.clone();
-        
+
         // Append two `.00, .01, .02` to multi id field names.
         if self.message_name_with_multi_id.contains(&ts_name) {
             ts_name.push_str(&format!(".{:02}", sub.multi_id));
@@ -272,7 +273,7 @@ impl <R: Read>ULogParser <R> {
             }
 
             // ⚠️This is a hack to get around the fact that the timestamp has already been read in parse_data_message()
-            // The PlotJuggler code makes an usupported assumption tha tht timestamp is always the first field.
+            // The PlotJuggler code makes an unsupported assumption that the timestamp is always the first field.
             if field.field_name == "timestamp" {
                 continue;
             }
@@ -293,6 +294,7 @@ impl <R: Read>ULogParser <R> {
                     FormatType::DOUBLE => { extract_and_advance(&mut message, size_of::<f64>(), |message| { LittleEndian::read_f64(message) as f64 }) },
                     FormatType::OTHER(type_id) => {
                         let child_format = self.formats.get(type_id).unwrap();
+                        // Commenting or uncommenting this line makes no difference to the data collected in the timeseries map. Why?
                         message = &message[8..]; // Skip over timestamp.
                         message = self.parse_simple_data_message(timeseries, child_format, message, index);
                         continue;
