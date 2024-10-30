@@ -16,7 +16,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>>  {
 
     let mut timeseries_map: TimeseriesMap = TimeseriesMap::new();
 
-    let file = File::open("data/powers.ulg").map_err(|e| {
+    let file = File::open("data/trig_stats.ulg").map_err(|e| {
         eprintln!("Failed to open file: {}", e);
         e
     })?;
@@ -28,11 +28,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>>  {
         e
     })?;
 
-    let mut csv_exporter = CsvExporter::from_timeseries_map(timeseries_map);
+    let csv_exporter = CsvExporter::from_timeseries_map(timeseries_map);
 
     let csv_data = csv_exporter.to_csv_string()?;
 
-    fs::write("data/powers_export.csv", csv_data)?;
+    fs::write("data/trig_stats_export.csv", csv_data)?;
 
     Ok(())
 }

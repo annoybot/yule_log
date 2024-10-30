@@ -24,7 +24,7 @@ impl CsvExporter {
         let mut series: Vec<Series> = vec![];
         let mut min_msg_time = f64::MAX;
 
-        for (topic_name, timeseries) in timeseries_map.iter() {
+        for (_topic_name, timeseries) in timeseries_map.iter() {
             for (field_name, data) in timeseries.data.iter() {
                 let mut serie = Series { name: field_name.clone(), data: vec![] };
 
@@ -32,6 +32,8 @@ impl CsvExporter {
 
                 for i in 0..data.len() {
                     let msg_time = (timeseries.timestamps[i].clone() as f64) * 0.000001;
+		    
+                    // Round to six digits.
                     let rounded_msg_time = (msg_time * 1_000_000.0).round() / 1_000_000.0;
                     min_msg_time = f64::min(min_msg_time, msg_time);
 
@@ -50,7 +52,6 @@ impl CsvExporter {
     }
 
     pub fn to_csv_string(&self) -> Result<String, Box<dyn std::error::Error>> {
-
         let  series_count = self.series.len();
 
         // Initialize indices and row values
@@ -82,13 +83,12 @@ impl CsvExporter {
 
                 let point = &series.data[indices[i]];
 
-
                 done = false;
 
                 if min_time > point.t {
                     min_time = point.t;  // new min_time
                     // Reset previous flags
-                    row_values.iter_mut().for_each(|v| *v = f64::NAN);
+                    row_values[..i].fill(f64::NAN);
                     row_values[i] = point.x;
                 } else if (min_time - point.t).abs() < f64::EPSILON {
                     row_values[i] = point.x;
@@ -101,11 +101,10 @@ impl CsvExporter {
 
             // Write the row to the CSV
             let mut row_record = vec![min_time.to_string()];
-            for &value in &row_values {
+            for (index_pos, &value) in row_values.iter().enumerate() {
                 if !value.is_nan() {
-                    row_record.push(value.to_string());
-                    // Move to the next index for that series
-                    let index_pos = row_values.iter().position(|&v| v == value).unwrap();
+                    let formatted_value = format!("{:.9}", value);
+                    row_record.push(formatted_value);
                     indices[index_pos] += 1;
                 } else {
                     row_record.push("".to_string());  // Empty value for missing data
