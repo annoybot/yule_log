@@ -1,3 +1,4 @@
+use std::io::Write;
 use crate::timeseries::TimeseriesMap;
 use csv::Writer;
 
@@ -51,21 +52,21 @@ impl CsvExporter {
         }
     }
 
-    pub fn to_csv_string(&self) -> Result<String, Box<dyn std::error::Error>> {
-        let  series_count = self.series.len();
+    pub fn to_csv(&self, writer: &mut dyn Write) -> Result<(), Box<dyn std::error::Error>> {
 
+        let series_count = self.series.len();
         // Initialize indices and row values
         let mut indices = vec![0; series_count];
         let mut row_values = vec![f64::NAN; series_count];
 
-        let mut wtr = Writer::from_writer(vec![]);
+        let mut csv_writer = Writer::from_writer(writer);
 
         // Write headers
         let mut headers = vec!["__time".to_string()];
         for series in &self.series {
             headers.push(series.name.clone());
         }
-        wtr.write_record(&headers)?;
+        csv_writer.write_record(&headers)?;
 
         let mut done = false;
 
@@ -95,29 +96,31 @@ impl CsvExporter {
                 }
             }
 
-            if  done {
+            if done {
                 break;
             }
 
-            // Write the row to the CSV
-            let mut row_record = vec![min_time.to_string()];
+            // Write the row directly to the CSV 
+            let mut row_record = Vec::with_capacity(series_count + 1);
+            row_record.push(min_time.to_string());
             for (index_pos, &value) in row_values.iter().enumerate() {
+	    
                 if !value.is_nan() {
                     let formatted_value = format!("{:.9}", value);
                     row_record.push(formatted_value);
                     indices[index_pos] += 1;
                 } else {
-                    row_record.push("".to_string());  // Empty value for missing data
+                    row_record.push(String::new()); // Empty value for missing data
                 }
             }
 
-            wtr.write_record(&row_record)?;
+            csv_writer.write_record(&row_record)?;
         }
 
-        // Convert the writer into a String
-        let data = String::from_utf8(wtr.into_inner()?)?;
-        Ok( data )
+        csv_writer.flush()?;
+        Ok(())
     }
+
 }
 
 

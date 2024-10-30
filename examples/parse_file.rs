@@ -3,7 +3,8 @@ use std::fs;
 use std::fs::File;
 use env_logger::Builder;
 use log::LevelFilter;
-use std::io::Write;
+use std::io::{BufWriter, Write};
+use csv::Writer;
 use ulog_rs::csv::CsvExporter;
 use ulog_rs::datastream::DataStream;
 use ulog_rs::parser::ULogParser;
@@ -39,13 +40,14 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         log::info!("Done parsing {:?}", path);
 
-        let csv_exporter = CsvExporter::from_timeseries_map(timeseries_map);
-        let csv_data = csv_exporter.to_csv_string()?;
-
         // Save file as <orig_filename>_exported.csv
         let csv_filename = path.with_file_name(format!("{}_export", path.file_stem().unwrap().to_str().unwrap())).with_extension("csv");
+        let file = File::create(csv_filename)?;
+        let mut writer = BufWriter::new(file);
 
-        fs::write(csv_filename, csv_data)?;
+        let csv_exporter = CsvExporter::from_timeseries_map(timeseries_map);
+        csv_exporter.to_csv(&mut writer)?;
+        writer.flush()?;
 
         log::info!("Exported {} to CSV", path.display());
     }
