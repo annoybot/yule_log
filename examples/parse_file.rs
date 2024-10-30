@@ -9,7 +9,7 @@ use ulog_rs::parser::{Timeseries, ULogParser};
 
 fn main() -> Result<(), Box<dyn std::error::Error>>  {
     Builder::new()
-        .filter(None, LevelFilter::Trace)
+        .filter(None, LevelFilter::Debug)
         .format(|buf, record| writeln!(buf, "{}: {}", record.level(), record.args()))
         .init();
 

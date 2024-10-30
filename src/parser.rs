@@ -116,7 +116,6 @@ pub struct ULogParser<R:Read> {
 
 impl <R: Read>ULogParser <R> {
     pub fn new(mut datastream: DataStream<R>, timeseries_map: &mut HashMap<String, Timeseries>) -> Result<ULogParser<R>, ULogError> {
-        log::trace!("Entering {}", "ULogParser::new" );
         let mut parser = ULogParser {
             file_start_time: 0,
             parameters: Vec::new(),
@@ -197,12 +196,10 @@ impl <R: Read>ULogParser <R> {
 
         log::debug!("Timeseries {:?}", timeseries_map);
 
-        log::trace!("Exiting {}", "ULogParser::new" );
         Ok(parser)
     }
 
     fn read_message_header(&mut self, datastream: &mut DataStream<R>) -> Result<Option<ULogMessageHeader>, ULogError> {
-        log::trace!("Entering {} at index {}", "read_message_header", datastream.num_bytes_read );
 
         let msg_size = datastream.read_u16()?;
 
@@ -215,16 +212,11 @@ impl <R: Read>ULogParser <R> {
         let msg_type = ULogMessageType::from(datastream.read_u8()?);
         log::trace!("MSG HEADER: {} {:?}", msg_size, msg_type);
 
-        log::trace!("Exiting {}", "read_message_header" );
         Ok( Some(ULogMessageHeader { msg_size, msg_type } ))
     }
 
     fn parse_data_message(&self, sub: &Subscription, message: &[u8], timeseries_map: &mut HashMap<String, Timeseries>) {
-        log::trace!("Entering {}", "parse_data_message" );
         let message = message.to_vec();
-
-        let str_format = String::from_utf8_lossy(&message);
-        log::trace!("buffer: {}", str_format);
 
         let mut ts_name = sub.message_name.clone();
 
@@ -243,11 +235,9 @@ impl <R: Read>ULogParser <R> {
         
         // Pass the message down, skipping the first eight bytes which are taken up by the timestamp.
         self.parse_simple_data_message(timeseries, sub.format.as_ref().unwrap(), &message[8..], &mut index);
-        log::trace!("Exiting {}", "parse_data_message" );
     }
 
     fn parse_simple_data_message<'a>(&'a self, timeseries: &mut Timeseries, format: &Format, mut message: &'a [u8], index: &mut usize) -> &'a [u8] {
-        log::trace!("Entering {}", "parse_simple_data_message" );
         // Utility fn to extract a value from `message` and to advance the buffer pointer past it.
         fn extract_and_advance<F>( message: &mut &[u8], advance_by: usize, extractor: F, ) -> f64
             where  F: Fn(&[u8]) -> f64,
@@ -260,8 +250,6 @@ impl <R: Read>ULogParser <R> {
         }
 
         for (i,field) in format.fields.iter().enumerate() {
-            log::trace!("Field: {:?}", field);
-
             let is_last_field = i == format.fields.len() - 1;
 
             // Skip _padding messages when they appear at the end of the list of fields.
@@ -309,12 +297,10 @@ impl <R: Read>ULogParser <R> {
             }
         }
 
-        log::trace!("Exiting {}", "parse_simple_data_message" );
         message
     }
 
     fn create_timeseries(&self, format: &Format) -> Timeseries {
-        log::trace!("Entering {}", "create_timeseries" );
         let mut timeseries = Timeseries {
             timestamps: Vec::new(),
             data: Vec::new(),
@@ -349,12 +335,10 @@ impl <R: Read>ULogParser <R> {
 
         append_vector(format, format.name.as_str(), &mut timeseries, &self.formats);
 
-        log::trace!("Exiting {}", "create_timeseries" );
         timeseries
     }
 
     fn read_file_header(&mut self, datastream: &mut DataStream<R>) -> Result<bool, ULogError> {
-        log::trace!("Entering {}", "read_file_header" );
         let mut msg_header = [0; 16];
         datastream.read_exact(&mut msg_header)?;
 
@@ -366,13 +350,10 @@ impl <R: Read>ULogParser <R> {
             return Ok(false);
         }
 
-        log::trace!("Exiting {}", "read_file_header" );
         Ok(true)
     }
 
     fn read_file_definitions(&mut self, datastream: &mut DataStream<R>) -> Result<ULogMessageHeader, ULogError> {
-        log::trace!("Entering {}", "read_file_definitions" );
-
         loop {
             let message_header = match self.read_message_header(datastream)? {
                 None => { return Err(ULogError::UnexpectedEndOfFile) }
@@ -398,7 +379,6 @@ impl <R: Read>ULogParser <R> {
                 }
                 ULogMessageType::ADD_LOGGED_MSG => {
                     // Return the message header, of the first logged message.
-                    log::trace!("Exiting {}", "read_file_definitions" );
                     return Ok(message_header);
                 }
                 ULogMessageType::INFO => {
@@ -414,7 +394,6 @@ impl <R: Read>ULogParser <R> {
                     panic!("Warning: Unknown ULogMessageType.");
                 },
                 _ => {
-                    log::trace!("Exiting {}", "read_file_definitions" );
                     return Err(ULogError::FormatError);
                 }
             }
@@ -422,7 +401,6 @@ impl <R: Read>ULogParser <R> {
     }
 
     fn read_flag_bits(&mut self, datastream: &mut DataStream<R>, msg_size: u16) -> Result<bool, ULogError> {
-        log::trace!("Entering {}", "read_flag_bits" );
         if msg_size != 40 {
             return Err(ULogError::FormatError);
         }
@@ -448,14 +426,12 @@ impl <R: Read>ULogParser <R> {
             }
         }
 
-        log::trace!("Exiting {}", "read_flag_bits" );
         Ok(true)
     }
 
 
 
     fn read_info(&mut self, datastream: &mut DataStream<R>, msg_size: u16) -> Result<bool, ULogError> {
-        log::trace!("Entering {}", "read_info" );
         let mut buffer:Vec<u8> = vec![0; msg_size as usize];
         datastream.read_exact(&mut buffer)?;
 
@@ -534,25 +510,21 @@ impl <R: Read>ULogParser <R> {
 
         self.info.insert(key, value);
 
-        log::trace!("Exiting {}", "read_info" );
         Ok(true)
     }
 
     fn read_parameter(&mut self, datastream: &mut DataStream<R>, msg_size: u16) -> Result<bool, ULogError> {
-        log::trace!("Entering {}", "read_parameter" );
         let mut buffer:Vec<u8> = vec![0; msg_size as usize];
         datastream.read_exact(&mut buffer)?;
 
         let param = Parameter::from_buffer(&buffer)?;
         self.parameters.push(param);
-        log::trace!("Exiting {}", "read_parameter" );
         Ok(true)
     }
 }
 
 impl Parameter {
     fn from_buffer(buffer: &[u8]) -> Result<Parameter, ULogError> {
-        log::trace!("Entering {}", "Parameter::from_buffer" );
         let key_len = buffer[0] as usize;
         let key = String::from_utf8(buffer[1..1 + key_len].to_vec())?;
         let pos = key.find(' ').ok_or(ULogError::FormatError)?;
@@ -573,7 +545,6 @@ impl Parameter {
         };
 
         log::debug!("PARAM {:?} {}:\t{:?}", val_type, name, value);
-        log::trace!("Exiting {}", "Parameter::from_buffer" );
         Ok(Parameter { name, value, val_type })
     }
 }

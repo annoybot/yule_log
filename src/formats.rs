@@ -6,11 +6,9 @@ use crate::tokenizer::TokenList;
 
 pub(crate) fn parse_format<R: Read>(datastream: &mut DataStream<R>, msg_size: u16) -> Result<Format, ULogError>
 {
-    log::trace!("Entering {}", "parse_format");
     let mut message_buf: Vec<u8> = vec![0; msg_size as usize];
     datastream.read_exact(&mut message_buf)?;
     let str_format = String::from_utf8(message_buf)?;
-    log::trace!("buffer: {}", str_format);
 
     let mut token_list = TokenList::from_str(&str_format);
     log::trace!("token_list: {:?}", token_list);
@@ -31,8 +29,6 @@ pub(crate) fn parse_format<R: Read>(datastream: &mut DataStream<R>, msg_size: u1
         fields.push(parse_field(&mut token_list)?);
     }
 
-    log::trace!("Exiting {}", "parse_format");
-    
     Ok( Format {
         name: name,
         fields: fields,
@@ -43,7 +39,6 @@ pub(crate) fn parse_format<R: Read>(datastream: &mut DataStream<R>, msg_size: u1
 
 pub(crate) fn parse_field(token_list: &mut TokenList) -> Result<Field, ULogError>
 {
-    log::trace!("Entering {}", "parse_field");
     log::trace!("token_list: {:?}", token_list);
 
     let type_name = match token_list.consume_one()? {
@@ -67,8 +62,6 @@ pub(crate) fn parse_field(token_list: &mut TokenList) -> Result<Field, ULogError
         _ => { Err(ULogError::FormatError)? }
     };
 
-    log::trace!("Exiting {}", "parse_field");
-    
     Ok( Field {
         field_name,
         type_: type_name,
