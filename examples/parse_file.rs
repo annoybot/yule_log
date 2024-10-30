@@ -37,6 +37,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             e
         })?;
 
+        log::info!("Done parsing {:?}", path);
+
         let csv_exporter = CsvExporter::from_timeseries_map(timeseries_map);
         let csv_data = csv_exporter.to_csv_string()?;
 
