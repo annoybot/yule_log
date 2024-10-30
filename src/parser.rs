@@ -228,16 +228,17 @@ impl <R: Read>ULogParser <R> {
         let timeseries = timeseries_map.entry(ts_name.clone())
             .or_insert_with(|| self.create_timeseries(sub.format.as_ref().unwrap()));
 
+        // Read the timestamp from the message directly.
         let time_val = LittleEndian::read_u64(&message[0..8]);
         timeseries.timestamps.push(time_val);
 
         let mut index = 0;
         
         // Pass the message down, skipping the first eight bytes which are taken up by the timestamp.
-        self.parse_simple_data_message(timeseries, sub.format.as_ref().unwrap(), &message[8..], &mut index);
+        self.parse_data_message_sub(timeseries, sub.format.as_ref().unwrap(), &message[8..], &mut index);
     }
 
-    fn parse_simple_data_message<'a>(&'a self, timeseries: &mut Timeseries, format: &Format, mut message: &'a [u8], index: &mut usize) -> &'a [u8] {
+    fn parse_data_message_sub<'a>(&'a self, timeseries: &mut Timeseries, format: &Format, mut message: &'a [u8], index: &mut usize) -> &'a [u8] {
         // Utility fn to extract a value from `message` and to advance the buffer pointer past it.
         fn extract_and_advance<F>( message: &mut &[u8], advance_by: usize, extractor: F, ) -> f64
             where  F: Fn(&[u8]) -> f64,
@@ -261,12 +262,6 @@ impl <R: Read>ULogParser <R> {
                 }
             }
 
-            // ⚠️This is a hack to get around the fact that the timestamp has already been read in parse_data_message()
-            // The PlotJuggler code makes an unsupported assumption that the timestamp is always the first field.
-            //if field.field_name == "timestamp" {
-            //    continue;
-            //}
-
             for _ in 0..field.array_size {
                 let value = match &field.type_ {
                     FormatType::BOOL => { extract_and_advance(&mut message, size_of::<u8>(), |message| { if message[0] != 0 { 1.0 } else { 0.0 } }) },
@@ -285,7 +280,7 @@ impl <R: Read>ULogParser <R> {
                         let child_format = self.formats.get(type_id).unwrap();
                         // Commenting or uncommenting this line makes no difference to the data collected in the timeseries map. Why?
                         message = &message[8..]; // Skip over timestamp.
-                        message = self.parse_simple_data_message(timeseries, child_format, message, index);
+                        message = self.parse_data_message_sub(timeseries, child_format, message, index);
                         continue;
                     }
                 };
@@ -598,5 +593,4 @@ impl From<u8> for ULogMessageType {
     }
 }
 
-const ULOG_MSG_HEADER_LEN: usize = 3;
 const ULOG_INCOMPAT_FLAG0_DATA_APPENDED_MASK: u8 = 1 << 0;
