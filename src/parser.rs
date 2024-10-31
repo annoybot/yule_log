@@ -247,22 +247,18 @@ impl <R: Read>ULogParser <R> {
         }
 
         for (i,field) in format.fields.iter().enumerate() {
-            let is_last_field = i == format.fields.len() - 1;
-
-            /*
-            // Skip _padding messages when they appear at the end of the list of fields.
-            // ⚠️ This is how I interpreted the specs before, but it crashes on some log files.
-            // Replaced with the code just below.
-            if field.field_name.starts_with("_padding")  {
-                if is_last_field {
-                    continue
-                } else {
-                    message = &message[field.array_size..];
-                }
-            }
-            */
-
             if field.field_name.starts_with("_padding") {
+                match field.array_size.cmp(&message.len()) {
+                    std::cmp::Ordering::Less | std::cmp::Ordering::Equal => {
+                        log::debug!("Encountered padding, and padding <= message.len().");
+                        message = &message[field.array_size..];
+                    }
+                    std::cmp::Ordering::Greater => match message.len() {
+                        0 => log::debug!("Encountered padding, but message.len() == 0. Ignoring as per ULOG spec."),
+                        _ => log::error!("Encountered padding, and padding > message.len(). Ignoring and hoping for the best"),
+                    },
+                }
+
                 continue
             }
 
