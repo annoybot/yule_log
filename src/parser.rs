@@ -246,7 +246,7 @@ impl <R: Read>ULogParser <R> {
             return value;
         }
 
-        for (i,field) in format.fields.iter().enumerate() {
+        for field in &format.fields {
             if field.field_name.starts_with("_padding") {
                 match field.array_size.cmp(&message.len()) {
                     std::cmp::Ordering::Less | std::cmp::Ordering::Equal => {
