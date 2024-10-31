@@ -302,17 +302,9 @@ impl <R: Read>ULogParser <R> {
         };
 
         fn append_vector(format: &Format, prefix: &str, timeseries: &mut Timeseries, formats: &HashMap<String, Format>) {
-            if format.name == "telemetry_status.00" {
-                log::info!("TELEMETRY STATUS FMT {:?}", format);
-            }
-
             for field in &format.fields {
                 if field.field_name.starts_with("_padding") {
                     continue;
-                }
-
-                if field.field_name == "heartbeats" {
-                    log::info!("HEARTBEAT FIELD {:?}", field);
                 }
 
                 for i in 0..field.array_size {
