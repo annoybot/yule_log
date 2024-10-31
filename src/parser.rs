@@ -10,6 +10,7 @@ use thiserror::Error;
 use crate::datastream::DataStream;
 use crate::formats::parse_format;
 use core::mem::size_of;
+use crate::parser::ULogError::ParseError;
 use crate::timeseries::{Timeseries, TimeseriesMap};
 
 #[derive(Error, Debug)]
@@ -394,7 +395,7 @@ impl <R: Read>ULogParser <R> {
         }
     }
 
-    fn read_flag_bits(&mut self, datastream: &mut DataStream<R>, msg_size: u16) -> Result<bool, ULogError> {
+    fn read_flag_bits(&mut self, datastream: &mut DataStream<R>, msg_size: u16) -> Result<(), ULogError> {
         if msg_size != 40 {
             return Err(ULogError::FormatError);
         }
@@ -420,91 +421,64 @@ impl <R: Read>ULogParser <R> {
             }
         }
 
-        Ok(true)
+        Ok( () )
     }
 
-
-
-    fn read_info(&mut self, datastream: &mut DataStream<R>, msg_size: u16) -> Result<bool, ULogError> {
+    fn read_info(&mut self, datastream: &mut DataStream<R>, msg_size: u16) -> Result<(), ULogError> {
         let mut buffer:Vec<u8> = vec![0; msg_size as usize];
         datastream.read_exact(&mut buffer)?;
+        let mut buffer = &mut buffer.as_slice();
 
         let key_len = buffer[0] as usize;
+
+        *buffer = &buffer[1..];
 
         // Print the buffer as hex
         //log::trace!("Buffer in hex: {}", buffer.iter().map(|byte| format!("{:02X}", byte)).collect::<Vec<String>>().join(" "));
 
-        let raw_key = String::from_utf8(buffer[1..1 + key_len].to_vec())?;
+        let (type_, key) = {
+            let raw_key = String::from_utf8(buffer[..key_len].to_vec())?;
+            *buffer = &buffer[key_len..];
 
-        let key_parts: Vec<&str> = raw_key.split_whitespace().collect();
-        if key_parts.len() < 2 {
-            return Ok(false);
-        }
+            let key_parts: Vec<&str> = raw_key.split_whitespace().collect();
+            if key_parts.len() != 2 {
+                return Err(ParseError(format!("Info message key has invalid format {:?}", raw_key)));
+            }
 
-        //log::debug!("Key parts: {:?}", key_parts);
+            (key_parts[0].to_string(), key_parts[1].to_string())
+        };
 
-        let key = key_parts[1].to_string();
-        let value = match key_parts[0] {
-            _ if key_parts[0].starts_with("char[") => {
-                String::from_utf8(buffer[1 + key_len..msg_size as usize].to_vec())?
-            },
-            "bool" => {
-                let val = buffer[1 + key_len] != 0;
-                val.to_string()
-            },
-            "uint8_t" => {
-                let val = buffer[1 + key_len] as u8;
-                val.to_string()
-            },
-            "int8_t" => {
-                let val = buffer[1 + key_len] as i8;
-                val.to_string()
-            },
-            "uint16_t" => {
-                let val = LittleEndian::read_u16(&buffer[1 + key_len..1 + key_len + 2]);
-                val.to_string()
-            },
-            "int16_t" => {
-                let val = LittleEndian::read_i16(&buffer[1 + key_len..1 + key_len + 2]);
-                val.to_string()
+        let value = match type_.as_str() {
+            _ if type_.starts_with("char[") => {
+                String::from_utf8(buffer.to_vec())?
             },
             "uint32_t" => {
-                let val = LittleEndian::read_u32(&buffer[1 + key_len..1 + key_len + 4]);
+                let val = LittleEndian::read_u32(&buffer[0..4]);
                 if key.starts_with("ver_") && key.ends_with("_release") {
                     format!("{:#X}", val)
                 } else {
                     val.to_string()
                 }
             },
-            "int32_t" => {
-                let val = LittleEndian::read_i32(&buffer[1 + key_len..1 + key_len + 4]);
-                val.to_string()
-            },
-            "float" => {
-                let val = LittleEndian::read_f32(&buffer[1 + key_len..1 + key_len + 4]);
-                val.to_string()
-            },
-            "double" => {
-                let val = LittleEndian::read_f64(&buffer[1 + key_len..1 + key_len + 8]);
-                val.to_string()
-            },
-            "uint64_t" => {
-                let val = LittleEndian::read_u64(&buffer[1 + key_len..1 + key_len + 8]);
-                val.to_string()
-            },
-            "int64_t" => {
-                let val = LittleEndian::read_i64(&buffer[1 + key_len..1 + key_len + 8]);
-                val.to_string()
-            },
+            "bool" => (buffer[0] != 0).to_string(),
+            "uint8_t" => (buffer[0] as u8).to_string(),
+            "int8_t" => (buffer[0] as i8).to_string(),
+            "uint16_t" => LittleEndian::read_u16(&buffer[0..2]).to_string(),
+            "int16_t" => LittleEndian::read_i16(&buffer[0..2]).to_string(),
+            "int32_t" => LittleEndian::read_i32(&buffer[0..4]).to_string(),
+            "float" => LittleEndian::read_f32(&buffer[0..4]).to_string(),
+            "double" => LittleEndian::read_f64(&buffer[0..8]).to_string(),
+            "uint64_t" => LittleEndian::read_u64(&buffer[0..8]).to_string(),
+            "int64_t" => LittleEndian::read_i64(&buffer[0..8]).to_string(),
             _ => return Err(ULogError::FormatError),
         };
 
 
-        log::debug!("INFO {} {}:\t{}", key_parts[0], key_parts[1], value);
+        log::info!("INFO {} {}:\t{}", type_, key, value);
 
         self.info.insert(key, value);
 
-        Ok(true)
+        Ok( () )
     }
 
     fn read_parameter(&mut self, datastream: &mut DataStream<R>, msg_size: u16) -> Result<bool, ULogError> {
