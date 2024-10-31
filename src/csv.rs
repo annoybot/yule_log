@@ -67,9 +67,11 @@ impl CsvExporter {
         let mut columns: Vec<Column> = vec![];
         let mut min_msg_time = f64::MAX;
 
-        for (_topic_name, timeseries) in timeseries_map.iter() {
+        for (topic_name, timeseries) in timeseries_map.iter() {
             for (field_name, data) in timeseries.data.iter() {
-                let mut column = Column { name: field_name.clone(), data: vec![], current_index: 0 };
+                // ⚠️ The field_names in the timeseries map will always contain a leading '/',
+                // so there is no need to add one  in the format statement below.
+                let mut column = Column { name: format!("{}{}", topic_name, field_name.clone()), data: vec![], current_index: 0 };
 
                 assert_eq!(timeseries.timestamps.len(), data.len());
 

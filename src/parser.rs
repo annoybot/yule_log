@@ -302,33 +302,40 @@ impl <R: Read>ULogParser <R> {
         };
 
         fn append_vector(format: &Format, prefix: &str, timeseries: &mut Timeseries, formats: &HashMap<String, Format>) {
+            if format.name == "telemetry_status.00" {
+                log::info!("TELEMETRY STATUS FMT {:?}", format);
+            }
+
             for field in &format.fields {
                 if field.field_name.starts_with("_padding") {
                     continue;
                 }
 
-                let new_prefix = format!("{}/{}", prefix, field.field_name);
+                if field.field_name == "heartbeats" {
+                    log::info!("HEARTBEAT FIELD {:?}", field);
+                }
+
                 for i in 0..field.array_size {
-                    let array_suffix = if field.array_size > 1 {
-                        format!(".{:02}", i)
+                    let new_prefix = if field.array_size > 1 {
+                        format!("{}/{}.{:02}", prefix, field.field_name, i)
                     } else {
-                        String::new()
+                        format!("{}/{}", prefix, field.field_name)
                     };
 
                     match &field.type_ {
                         FormatType::OTHER(type_name) => {
                             let child_format = formats.get(type_name).unwrap();
-                            append_vector(child_format, &format!("{}{}", new_prefix, array_suffix), timeseries, formats);
+                            append_vector(child_format, &new_prefix, timeseries, formats);
                         }
                         _ => {
-                            timeseries.data.push((format!("{}{}", new_prefix, array_suffix), Vec::new()));
+                            timeseries.data.push((new_prefix, Vec::new()));
                         }
                     }
                 }
             }
         }
 
-        append_vector(format, format.name.as_str(), &mut timeseries, &self.formats);
+        append_vector(format, "", &mut timeseries, &self.formats);
 
         timeseries
     }
