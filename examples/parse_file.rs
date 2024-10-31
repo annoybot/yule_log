@@ -4,7 +4,6 @@ use std::fs::File;
 use env_logger::Builder;
 use log::LevelFilter;
 use std::io::{BufWriter, Write};
-use csv::Writer;
 use ulog_rs::csv::CsvExporter;
 use ulog_rs::datastream::DataStream;
 use ulog_rs::parser::ULogParser;
@@ -45,7 +44,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let file = File::create(csv_filename)?;
         let mut writer = BufWriter::new(file);
 
-        let csv_exporter = CsvExporter::from_timeseries_map(timeseries_map);
+        let mut csv_exporter = CsvExporter::from_timeseries_map(timeseries_map);
         csv_exporter.to_csv(&mut writer)?;
         writer.flush()?;
 

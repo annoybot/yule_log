@@ -3,31 +3,73 @@ use crate::timeseries::TimeseriesMap;
 use csv::Writer;
 
 pub struct CsvExporter {
-    series: Vec<Series>,
+    columns: Vec<Column>,
 }
 
 #[derive(Debug)]
-pub struct Series {
+pub struct Column {
     name: String,
     data: Vec<Point>,
+    current_index: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct Point {
     t: f64,
     // Timestamp
     x: f64,  // Data value
 }
 
+impl Column {
+    fn value_at_time(&mut self, t: f64) -> Option<f64> {
+        match &self.current() {
+            None => { return None }
+            Some(current_point) => {
+                if (current_point.t - t).abs() < f64::EPSILON {
+                    self.current_index += 1;
+                    return Some(current_point.x);
+                } else {
+                    return None;
+                }
+            }
+        }
+    }
+
+    fn current(&self) -> Option<Point> {
+        if self.current_index >= self.data.len() {
+            return None; // Column exhausted
+        } else {
+            return Some( self.data[self.current_index] );
+        }
+    }
+}
 
 impl CsvExporter {
+    fn min_timestamp(&self) -> Option<f64> {
+        let mut min_time = f64::MAX;
+
+        for s in &self.columns {
+            if let Some(current_point) = s.data.get(s.current_index) {
+                if current_point.t < min_time {
+                    min_time = current_point.t;
+                }
+            }
+        }
+
+        if min_time == f64::MAX {
+            None
+        } else {
+            Some(min_time)
+        }
+    }
+
     pub fn from_timeseries_map(timeseries_map: TimeseriesMap) -> Self {
-        let mut series: Vec<Series> = vec![];
+        let mut columns: Vec<Column> = vec![];
         let mut min_msg_time = f64::MAX;
 
         for (_topic_name, timeseries) in timeseries_map.iter() {
             for (field_name, data) in timeseries.data.iter() {
-                let mut serie = Series { name: field_name.clone(), data: vec![] };
+                let mut column = Column { name: field_name.clone(), data: vec![], current_index: 0 };
 
                 assert_eq!(timeseries.timestamps.len(), data.len());
 
@@ -38,89 +80,55 @@ impl CsvExporter {
                     let rounded_msg_time = (msg_time * 1_000_000.0).round() / 1_000_000.0;
                     min_msg_time = f64::min(min_msg_time, msg_time);
 
-                    serie.data.push(Point { t: rounded_msg_time, x: data[i] });
+                    column.data.push(Point { t: rounded_msg_time, x: data[i] });
                 }
-                println!("{:?}", serie);
-                series.push(serie);
+                columns.push(column);
             }
         }
 
-        series.sort_by_key(|s| s.name.clone());
+        columns.sort_by_key(|s| s.name.clone());
 
         CsvExporter {
-            series,
+            columns,
         }
     }
 
-    pub fn to_csv(&self, writer: &mut dyn Write) -> Result<(), Box<dyn std::error::Error>> {
-
-        let series_count = self.series.len();
-        // Initialize indices and row values
-        let mut indices = vec![0; series_count];
-        let mut row_values = vec![f64::NAN; series_count];
-
+    pub fn to_csv(&mut self, writer: &mut dyn Write) -> Result<(), Box<dyn std::error::Error>> {
         let mut csv_writer = Writer::from_writer(writer);
 
-        // Write headers
-        let mut headers = vec!["__time".to_string()];
-        for series in &self.series {
-            headers.push(series.name.clone());
+        let column_count = self.columns.len();
+
+        // The length of a row is the number of columns + 1 to account for the `__time` column.
+        let mut csv_record:Vec<String> = Vec::with_capacity(column_count + 1);
+
+        csv_record.push("__time".to_string());
+
+        for column in &self.columns {
+            csv_record.push(column.name.clone());
         }
-        csv_writer.write_record(&headers)?;
 
-        let mut done = false;
+        csv_writer.write_record(&csv_record)?;
+        csv_record.clear(); // Clear the vec to make it ready for reuse.
 
-        while !done {
-            done = true;
-            let mut min_time = f64::MAX;
+        let empty_str = String::new();
 
-            for i in 0..series_count {
-                let series = &self.series[i];
-                row_values[i] = f64::NAN;
+        while let Some(min_timestamp) = self.min_timestamp() {
+            csv_record.push(format!("{:.6}",min_timestamp) );
 
-                if indices[i] >= series.data.len() {
-                    continue;
-                }
-
-                let point = &series.data[indices[i]];
-
-                done = false;
-
-                if min_time > point.t {
-                    min_time = point.t;  // new min_time
-                    // Reset previous flags
-                    row_values[..i].fill(f64::NAN);
-                    row_values[i] = point.x;
-                } else if (min_time - point.t).abs() < f64::EPSILON {
-                    row_values[i] = point.x;
-                }
+            for column in self.columns.iter_mut() {
+                csv_record.push(match column.value_at_time(min_timestamp) {
+                    None => { empty_str.clone() }
+                    Some(x) => { format!("{:.9}", x) }
+                });
             }
 
-            if done {
-                break;
-            }
-
-            // Write the row directly to the CSV 
-            let mut row_record = Vec::with_capacity(series_count + 1);
-            row_record.push(min_time.to_string());
-            for (index_pos, &value) in row_values.iter().enumerate() {
-	    
-                if !value.is_nan() {
-                    let formatted_value = format!("{:.9}", value);
-                    row_record.push(formatted_value);
-                    indices[index_pos] += 1;
-                } else {
-                    row_record.push(String::new()); // Empty value for missing data
-                }
-            }
-
-            csv_writer.write_record(&row_record)?;
+            csv_writer.write_record(&csv_record)?;
+            csv_record.clear();
         }
 
         csv_writer.flush()?;
         Ok(())
     }
-
 }
 
 
