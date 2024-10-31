@@ -474,7 +474,7 @@ impl <R: Read>ULogParser <R> {
         };
 
 
-        log::info!("INFO {} {}:\t{}", type_, key, value);
+        log::debug!("INFO {} {}:\t{}", type_, key, value);
 
         self.info.insert(key, value);
 
