@@ -2,11 +2,19 @@ use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 
 #[derive(Debug)]
+// Key: A subscription message name. Example: "vehicle_angular_acceleration".
+//      Multiplicity is indicated with two digits: "telemetry_status.00"
+// Value: Timeseries
 pub struct TimeseriesMap(HashMap<String, Timeseries>);
 
 #[derive(Debug)]
 pub struct Timeseries {
+    // Array of timestamps for all data in this time series.
+    // Invariant: timestamps.len() == data.1.len()
     pub timestamps: Vec<u64>,
+
+    // Key: Absolute path of field names. Example: ""/streams"
+    // Path may have multiple components and multiplicity: "/heartbeats.00/system_id"
     pub data: Vec<(String, Vec<f64>)>,
 }
 

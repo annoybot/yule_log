@@ -145,7 +145,7 @@ impl <R: Read>ULogParser <R> {
             datastream.read_exact(&mut message)?;
 
             match message_header.msg_type {
-                ULogMessageType::ADD_LOGGED_MSG => {
+                ULogMessageType::ADD_SUBSCRIPTION => {
                     let message_name = String::from_utf8(message[3..message_header.msg_size as usize].to_owned())?;
 
                     let format = match self.formats.get(&message_name) {
@@ -166,7 +166,7 @@ impl <R: Read>ULogParser <R> {
                         self.message_name_with_multi_id.insert(sub.message_name.clone());
                     }
                 }
-                ULogMessageType::REMOVE_LOGGED_MSG => {
+                ULogMessageType::REMOVE_SUBSCRIPTION => {
                     let msg_id = LittleEndian::read_u16(&message[0..2]);
                     self.subscriptions.remove(&msg_id);
                 }
@@ -373,7 +373,7 @@ impl <R: Read>ULogParser <R> {
                     let param = self.parse_parameter(datastream, message_header.msg_size)?;
                     self.parameters.push(param);
                 }
-                ULogMessageType::ADD_LOGGED_MSG => {
+                ULogMessageType::ADD_SUBSCRIPTION => {
                     // Return the message header, of the first logged message.
                     return Ok(message_header);
                 }
@@ -537,8 +537,8 @@ pub enum ULogMessageType {
     INFO_MULTIPLE = b'M' ,
     PARAMETER = b'P' ,
     PARAMETER_DEFAULT = b'Q' ,
-    ADD_LOGGED_MSG = b'A' ,
-    REMOVE_LOGGED_MSG = b'R' ,
+    ADD_SUBSCRIPTION = b'A' ,
+    REMOVE_SUBSCRIPTION = b'R' ,
     SYNC = b'S' ,
     DROPOUT = b'O' ,
     LOGGING = b'L' ,
@@ -556,8 +556,8 @@ impl From<u8> for ULogMessageType {
             b'M' => ULogMessageType::INFO_MULTIPLE,
             b'P' => ULogMessageType::PARAMETER,
             b'Q' => ULogMessageType::PARAMETER_DEFAULT,
-            b'A' => ULogMessageType::ADD_LOGGED_MSG,
-            b'R' => ULogMessageType::REMOVE_LOGGED_MSG,
+            b'A' => ULogMessageType::ADD_SUBSCRIPTION,
+            b'R' => ULogMessageType::REMOVE_SUBSCRIPTION,
             b'S' => ULogMessageType::SYNC,
             b'O' => ULogMessageType::DROPOUT,
             b'L' => ULogMessageType::LOGGING,
