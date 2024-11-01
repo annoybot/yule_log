@@ -60,7 +60,7 @@ pub enum FormatType {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Field {
-    pub field_name: String,
+    pub name: String,
     pub(crate) type_: FormatType,
     pub array_size: usize,
 }
@@ -97,6 +97,10 @@ pub struct Subscription {
     pub format: Option<Format>,
 }
 
+struct Info {
+    key: String,
+    value: String,
+}
 
 pub struct ULogParser<R:Read> {
     file_start_time: u64,
@@ -246,7 +250,7 @@ impl <R: Read>ULogParser <R> {
         }
 
         for field in &format.fields {
-            if field.field_name.starts_with("_padding") {
+            if field.name.starts_with("_padding") {
                 match field.array_size.cmp(&message.len()) {
                     std::cmp::Ordering::Less | std::cmp::Ordering::Equal => {
                         log::debug!("Encountered padding, and padding <= message.len(). Ok.");
@@ -300,15 +304,15 @@ impl <R: Read>ULogParser <R> {
 
         fn append_vector(format: &Format, prefix: &str, timeseries: &mut Timeseries, formats: &HashMap<String, Format>) {
             for field in &format.fields {
-                if field.field_name.starts_with("_padding") {
+                if field.name.starts_with("_padding") {
                     continue;
                 }
 
                 for i in 0..field.array_size {
                     let new_prefix = if field.array_size > 1 {
-                        format!("{}/{}.{:02}", prefix, field.field_name, i)
+                        format!("{}/{}.{:02}", prefix, field.name, i)
                     } else {
-                        format!("{}/{}", prefix, field.field_name)
+                        format!("{}/{}", prefix, field.name)
                     };
 
                     match &field.type_ {
@@ -353,27 +357,30 @@ impl <R: Read>ULogParser <R> {
 
             match message_header.msg_type {
                 ULogMessageType::FLAG_BITS => {
-                    self.read_flag_bits(datastream, message_header.msg_size)?;
+                    self.parse_flag_bits(datastream, message_header.msg_size)?;
                 }
                 ULogMessageType::FORMAT => {
                     let mut format = parse_format(datastream, message_header.msg_size)?;
 
                     // ⚠️ Remove the timestamp field.  We don't end up needing it in the Timeseries data structure.
                     format.fields = format.fields.into_iter()
-                        .filter(|f| f.field_name != "timestamp")
+                        .filter(|f| f.name != "timestamp")
                         .collect();
 
                     self.formats.insert(format.name.clone(), format);
                 }
                 ULogMessageType::PARAMETER => {
-                    self.read_parameter(datastream, message_header.msg_size)?;
+                    let param = self.parse_parameter(datastream, message_header.msg_size)?;
+                    self.parameters.push(param);
                 }
                 ULogMessageType::ADD_LOGGED_MSG => {
                     // Return the message header, of the first logged message.
                     return Ok(message_header);
                 }
                 ULogMessageType::INFO => {
-                    self.read_info(datastream, message_header.msg_size)?;
+                    let info = self.parse_info(datastream, message_header.msg_size)?;
+                    self.info.insert(info.key, info.value);
+
                 }
                 ULogMessageType::INFO_MULTIPLE | ULogMessageType::PARAMETER_DEFAULT => {
                     datastream.skip(message_header.msg_size as usize)?;
@@ -388,7 +395,7 @@ impl <R: Read>ULogParser <R> {
         }
     }
 
-    fn read_flag_bits(&mut self, datastream: &mut DataStream<R>, msg_size: u16) -> Result<(), ULogError> {
+    fn parse_flag_bits(&mut self, datastream: &mut DataStream<R>, msg_size: u16) -> Result<(), ULogError> {
         if msg_size != 40 {
             return Err(ULogError::FormatError);
         }
@@ -408,8 +415,7 @@ impl <R: Read>ULogParser <R> {
             let appended_offsets = &message[16..40];
             let offset_0 = LittleEndian::read_u64(&appended_offsets[0..8]);
             if offset_0 > 0 {
-                // The appended data is currently only used for hardfault dumps, so it's safe to ignore it.
-                //self.read_until_file_position = offset_0 as i64;
+                // The appended data is currently only used for core dumps, so it's safe to ignore it.
                 datastream.max_bytes_to_read = Some(offset_0 as usize);
             }
         }
@@ -417,7 +423,7 @@ impl <R: Read>ULogParser <R> {
         Ok( () )
     }
 
-    fn read_info(&mut self, datastream: &mut DataStream<R>, msg_size: u16) -> Result<(), ULogError> {
+    fn parse_info(&mut self, datastream: &mut DataStream<R>, msg_size: u16) -> Result<Info, ULogError> {
         let mut buffer:Vec<u8> = vec![0; msg_size as usize];
         datastream.read_exact(&mut buffer)?;
         let buffer = &mut buffer.as_slice();
@@ -467,45 +473,52 @@ impl <R: Read>ULogParser <R> {
         };
 
         log::debug!("INFO {} {}:\t{}", type_, key, value);
-
-        self.info.insert(key, value);
-
-        Ok( () )
+        
+        Ok( Info{ key, value} )
     }
 
-    fn read_parameter(&mut self, datastream: &mut DataStream<R>, msg_size: u16) -> Result<bool, ULogError> {
+    fn parse_parameter(&mut self, datastream: &mut DataStream<R>, msg_size: u16) -> Result<Parameter, ULogError> {
         let mut buffer:Vec<u8> = vec![0; msg_size as usize];
         datastream.read_exact(&mut buffer)?;
+        let buffer = &mut buffer.as_slice();
 
-        let param = Parameter::from_buffer(&buffer)?;
-        self.parameters.push(param);
-        Ok(true)
+        let param = Parameter::from_buffer(buffer)?;
+        Ok(param)
     }
 }
 
 impl Parameter {
-    fn from_buffer(buffer: &[u8]) -> Result<Parameter, ULogError> {
+    fn from_buffer(buffer: &mut &[u8]) -> Result<Parameter, ULogError> {
         let key_len = buffer[0] as usize;
-        let key = String::from_utf8(buffer[1..1 + key_len].to_vec())?;
-        let pos = key.find(' ').ok_or(ULogError::FormatError)?;
+        *buffer = &buffer[1..];
 
-        let type_ = &key[0..pos];
-        let name = key[pos + 1..].to_string();
+        let (type_, key) = {
+            let raw_key = String::from_utf8(buffer[..key_len].to_vec())?;
+            *buffer = &buffer[key_len..];
 
-        let value = match type_ {
-            "int32_t" => ParameterValue::Int(LittleEndian::read_i32(&buffer[1 + key_len..])),
-            "float" => ParameterValue::Real(LittleEndian::read_f32(&buffer[1 + key_len..])),
+            let key_parts: Vec<&str> = raw_key.split_whitespace().collect();
+            if key_parts.len() != 2 {
+                return Err(ParseError(format!("Parameter message key has invalid format {:?}", raw_key)));
+            }
+
+            (key_parts[0].to_string(), key_parts[1].to_string())
+        };
+        
+        
+        let value = match type_.as_str() {
+            "int32_t" => ParameterValue::Int(LittleEndian::read_i32(buffer)),
+            "float" => ParameterValue::Real(LittleEndian::read_f32(buffer)),
             _ => return Err(ULogError::UnknownParameterType),
         };
 
-        let val_type = match type_ {
+        let val_type = match type_.as_str() {
             "int32_t" => FormatType::INT32,
             "float" => FormatType::FLOAT,
             _ => return Err(ULogError::UnknownParameterType),
         };
 
-        log::debug!("PARAM {:?} {}:\t{:?}", val_type, name, value);
-        Ok(Parameter { name, value, val_type })
+        log::debug!("PARAM {:?} {}:\t{:?}", val_type, key, value);
+        Ok(Parameter { name: key, value, val_type })
     }
 }
 

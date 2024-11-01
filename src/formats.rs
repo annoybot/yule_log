@@ -63,7 +63,7 @@ pub(crate) fn parse_field(token_list: &mut TokenList) -> Result<Field, ULogError
     };
 
     Ok( Field {
-        field_name,
+        name: field_name,
         type_: type_name,
         array_size,
     } )
@@ -121,17 +121,17 @@ mod tests {
             name: "my_format".to_string(),
             fields: vec![
                 Field {
-                    field_name: "timestamp".to_string(),
+                    name: "timestamp".to_string(),
                     type_: FormatType::UINT64,
                     array_size: 1, // assuming non-array type for uint64_t
                 },
                 Field {
-                    field_name: "is_happy".to_string(),
+                    name: "is_happy".to_string(),
                     type_: FormatType::BOOL,
                     array_size: 1, // assuming non-array type for bool
                 },
                 Field {
-                    field_name: "pet_ids".to_string(),
+                    name: "pet_ids".to_string(),
                     type_: FormatType::UINT8,
                     array_size: 8, // as defined in the input string
                 },
