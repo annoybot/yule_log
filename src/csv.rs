@@ -103,6 +103,7 @@ impl CsvExporter {
         // The length of a row is the number of columns + 1 to account for the `__time` column.
         let mut csv_record:Vec<String> = Vec::with_capacity(column_count + 1);
 
+        // 1. Write header.
         csv_record.push("__time".to_string());
 
         for column in &self.columns {
@@ -112,6 +113,7 @@ impl CsvExporter {
         csv_writer.write_record(&csv_record)?;
         csv_record.clear(); // Clear the vec to make it ready for reuse.
 
+        // 2. Write rows.
         let empty_str = String::new();
 
         while let Some(min_timestamp) = self.min_timestamp() {

@@ -44,12 +44,15 @@ fn process_file(path: &Path) -> Result<(), Box<dyn Error>> {
         eprintln!("Failed to open file: {}", e);
         e
     })?;
-    let data_stream = DataStream::new(file);
+    
+    let mut data_stream = DataStream::new(file);
 
-    let _parser = ULogParser::new(data_stream, &mut timeseries_map).map_err(|e| {
+    let mut parser = ULogParser::new().map_err(|e| {
         eprintln!("Failed to create ULogParser: {:?}", e);
         e
     })?;
+    
+    parser.parse(&mut data_stream, &mut timeseries_map)?;
 
     log::debug!("Done parsing {:?}", path);
 

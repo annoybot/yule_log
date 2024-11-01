@@ -112,8 +112,8 @@ pub struct ULogParser<R:Read> {
 }
 
 impl <R: Read>ULogParser <R> {
-    pub fn new(mut datastream: DataStream<R>, timeseries_map: &mut TimeseriesMap) -> Result<ULogParser<R>, ULogError> {
-        let mut parser = ULogParser {
+    pub fn new() -> Result<ULogParser<R>, ULogError> {
+        Ok( ULogParser {
             file_start_time: 0,
             parameters: Vec::new(),
             overridden_params: HashSet::new(),
@@ -123,28 +123,28 @@ impl <R: Read>ULogParser <R> {
             message_name_with_multi_id: HashSet::new(),
             message_logs: Vec::new(),
             _phantom: PhantomData,
-        };
+        })
+    }
 
-        if !parser.read_file_header(&mut datastream)? {
+    pub fn parse(&mut self, mut datastream: &mut DataStream<R>, timeseries_map: &mut TimeseriesMap) -> Result<(), ULogError> {
+        if !self.read_file_header(datastream)? {
             return Err(ULogError::InvalidHeader);
         }
 
         // read_file_definitions will return the message header of the first logged message.
-        let mut message_header = parser.read_file_definitions(&mut datastream)?;
+        let mut message_header = self.read_file_definitions(&mut datastream)?;
 
         while datastream.should_read() {
 
             // Allocate a buffer for the message using the message size specified in the header.
-            let mut message:Vec<u8> = vec![0; message_header.msg_size as usize];
+            let mut message: Vec<u8> = vec![0; message_header.msg_size as usize];
             datastream.read_exact(&mut message)?;
-
-            //message[message_header.msg_size as usize] = 0;
 
             match message_header.msg_type {
                 ULogMessageType::ADD_LOGGED_MSG => {
                     let message_name = String::from_utf8(message[3..message_header.msg_size as usize].to_owned())?;
 
-                    let format = match parser.formats.get(&message_name) {
+                    let format = match self.formats.get(&message_name) {
                         None => { None }
                         Some(format) => { Some((*format).clone()) }
                     };
@@ -156,20 +156,20 @@ impl <R: Read>ULogParser <R> {
                         format,
                     };
 
-                    parser.subscriptions.insert(sub.msg_id, sub.clone());
+                    self.subscriptions.insert(sub.msg_id, sub.clone());
 
                     if sub.multi_id > 0 {
-                        parser.message_name_with_multi_id.insert(sub.message_name.clone());
+                        self.message_name_with_multi_id.insert(sub.message_name.clone());
                     }
                 }
                 ULogMessageType::REMOVE_LOGGED_MSG => {
                     let msg_id = LittleEndian::read_u16(&message[0..2]);
-                    parser.subscriptions.remove(&msg_id);
+                    self.subscriptions.remove(&msg_id);
                 }
                 ULogMessageType::DATA => {
                     let msg_id = LittleEndian::read_u16(&message[0..2]);
-                    if let Some(sub) = parser.subscriptions.get(&msg_id) {
-                        parser.parse_data_message(sub, &message[2..], timeseries_map);
+                    if let Some(sub) = self.subscriptions.get(&msg_id) {
+                        self.parse_data_message(sub, &message[2..], timeseries_map);
                     }
                 }
                 ULogMessageType::LOGGING => {
@@ -179,21 +179,19 @@ impl <R: Read>ULogParser <R> {
                         msg: String::new(),
                     };
                     msg.msg = String::from_utf8(message[9..message_header.msg_size as usize].to_vec())?;
-                    parser.message_logs.push(msg);
+                    self.message_logs.push(msg);
                 }
                 _ => {}
             }
 
             // Read the next message header.  Receiving None indicates EOF.
-            message_header = match parser.read_message_header(&mut datastream)? {
+            message_header = match self.read_message_header(&mut datastream)? {
                 None => break,
                 Some(header) => header
             }
         }
 
-        log::debug!("Timeseries {:?}", timeseries_map);
-
-        Ok(parser)
+        Ok( () )
     }
 
     fn read_message_header(&mut self, datastream: &mut DataStream<R>) -> Result<Option<ULogMessageHeader>, ULogError> {
@@ -201,7 +199,7 @@ impl <R: Read>ULogParser <R> {
         let msg_size = datastream.read_u16()?;
 
         // ⚠️This is the only place where we check for EOF when calling a datastream read method.
-        // If we encounter EOF anywhere else, it counts as a ture 'Unexpected EOF' and is treated as an error.
+        // If we encounter EOF anywhere else, it counts as a true 'Unexpected EOF' and is treated as an error.
         if datastream.eof {
             return Ok(None);
         }
@@ -251,15 +249,14 @@ impl <R: Read>ULogParser <R> {
             if field.field_name.starts_with("_padding") {
                 match field.array_size.cmp(&message.len()) {
                     std::cmp::Ordering::Less | std::cmp::Ordering::Equal => {
-                        log::debug!("Encountered padding, and padding <= message.len().");
+                        log::debug!("Encountered padding, and padding <= message.len(). Ok.");
                         message = &message[field.array_size..];
                     }
                     std::cmp::Ordering::Greater => match message.len() {
-                        0 => log::debug!("Encountered padding, but message.len() == 0. Ignoring as per ULOG spec."),
+                        0 => log::debug!("Encountered padding, and message.len() == 0. Ignoring as per ULOG spec."),
                         _ => log::error!("Encountered padding, and padding > message.len(). Ignoring and hoping for the best"),
                     },
                 }
-
                 continue
             }
 
@@ -279,7 +276,6 @@ impl <R: Read>ULogParser <R> {
                     FormatType::DOUBLE => { extract_and_advance(&mut message, size_of::<f64>(), |message| { LittleEndian::read_f64(message) as f64 }) },
                     FormatType::OTHER(type_id) => {
                         let child_format = self.formats.get(type_id).unwrap();
-                        // Commenting or uncommenting this line makes no difference to the data collected in the timeseries map. Why?
                         message = &message[8..]; // Skip over timestamp.
                         message = self.parse_data_message_sub(timeseries, child_format, message, index);
                         continue;
@@ -383,9 +379,6 @@ impl <R: Read>ULogParser <R> {
                     datastream.skip(message_header.msg_size as usize)?;
                 }
                 ULogMessageType::UNKNOWN => {
-                    //log::debug!("Warning: Unknown ULogMessageType. Skipping.");
-                    //continue;
-                    //return Err(ULogError::FormatError);
                     panic!("Warning: Unknown ULogMessageType.");
                 },
                 _ => {
@@ -427,13 +420,13 @@ impl <R: Read>ULogParser <R> {
     fn read_info(&mut self, datastream: &mut DataStream<R>, msg_size: u16) -> Result<(), ULogError> {
         let mut buffer:Vec<u8> = vec![0; msg_size as usize];
         datastream.read_exact(&mut buffer)?;
-        let mut buffer = &mut buffer.as_slice();
+        let buffer = &mut buffer.as_slice();
 
         let key_len = buffer[0] as usize;
 
         *buffer = &buffer[1..];
 
-        // Print the buffer as hex
+        // Log the buffer as hex
         //log::trace!("Buffer in hex: {}", buffer.iter().map(|byte| format!("{:02X}", byte)).collect::<Vec<String>>().join(" "));
 
         let (type_, key) = {
@@ -472,7 +465,6 @@ impl <R: Read>ULogParser <R> {
             "int64_t" => LittleEndian::read_i64(&buffer[0..8]).to_string(),
             _ => return Err(ULogError::FormatError),
         };
-
 
         log::debug!("INFO {} {}:\t{}", type_, key, value);
 
