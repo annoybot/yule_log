@@ -1,7 +1,7 @@
 #![allow(non_camel_case_types)]
 
 use byteorder::{ByteOrder, LittleEndian};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::io;
 use std::io::Read;
 use std::marker::PhantomData;
@@ -111,8 +111,19 @@ pub struct ULogParser<R:Read> {
     subscriptions: HashMap<u16, Subscription>,
     message_name_with_multi_id: HashSet<String>,
     message_logs: Vec<MessageLog>,
+    // Allows the emitted timeseries to be filtered.
+    // Key: A subscription message name. Example: "vehicle_angular_acceleration".
+    // Value: An optional sorted list of field paths. If None, all fields in this subscription will be included.
+    // If timseries_filter is None, all fields will be included.
+    timeseries_filter: Option<BTreeMap<String, Option<BTreeSet<String>>>>,
     _phantom: PhantomData<R>,
 
+}
+
+#[derive(PartialEq, Eq, Hash, Ord, PartialOrd)]
+struct FilterExpr {
+    subscr_name: String,
+    field_path: Option<String>,
 }
 
 impl <R: Read>ULogParser <R> {
@@ -126,6 +137,7 @@ impl <R: Read>ULogParser <R> {
             subscriptions: HashMap::new(),
             message_name_with_multi_id: HashSet::new(),
             message_logs: Vec::new(),
+            timeseries_filter: None,
             _phantom: PhantomData,
         })
     }
@@ -218,6 +230,19 @@ impl <R: Read>ULogParser <R> {
         let message = message.to_vec();
 
         let mut ts_name = sub.message_name.clone();
+
+        if let Some(timeseries_filter) = &self.timeseries_filter {
+            match timeseries_filter.contains_key(&sub.message_name) {
+                true => {
+                    //FIXME: This part isn't working, where we specify a field to further fitler by.
+                }
+                false => {
+                    // Skip this message entirely.
+                    return;
+                }
+            };
+        }
+
 
         // Append two `.00, .01, .02` to multi id field names.
         if self.message_name_with_multi_id.contains(&ts_name) {
@@ -484,6 +509,39 @@ impl <R: Read>ULogParser <R> {
 
         let param = Parameter::from_buffer(buffer)?;
         Ok(param)
+    }
+
+    pub fn filter_by_paths(&mut self, paths: &[&str]) {
+        // This has the effect of sorting the paths uniquely.
+        let paths: BTreeSet<_> = paths.into_iter().collect();
+
+        self.timeseries_filter = Some(BTreeMap::new());
+
+        let timeseries_filter = self.timeseries_filter.as_mut().unwrap();
+
+        for path in &paths {
+            // Split the path into left (subscription message) and right (field path)
+            let parts: Vec<&str> = path.splitn(2, '/').collect();
+            let (subscription_name, field_path) = match &parts[..] {
+                [l, r] => (l.to_string(), Some(format!("/{}", r))),
+                [l] => (l.to_string(), None),
+                _ => continue,
+            };
+
+            match field_path {
+                None => {
+                    timeseries_filter.insert(subscription_name, None);
+                }
+                Some(value) => {
+                    let entry = timeseries_filter.entry(subscription_name)
+                        .or_insert_with(|| Some(BTreeSet::new()) );
+
+                    entry.as_mut().unwrap().insert(value);
+                }
+            }
+        }
+
+        log::debug!("timeseries_filter: {:?}", self.timeseries_filter);
     }
 }
 

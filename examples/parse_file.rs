@@ -51,10 +51,13 @@ fn process_file(path: &Path) -> Result<(), Box<dyn Error>> {
         eprintln!("Failed to create ULogParser: {:?}", e);
         e
     })?;
-    
+
+    //FIXME: This filtering feature might not be working yet.  I've been comparing the full output filterd by xsv and it doesn't match?
+    // parser.filter_by_paths(&vec!["vehicle_local_position/x", "vehicle_local_position/y", "vehicle_local_position/z"]);
+
     parser.parse(&mut data_stream, &mut timeseries_map)?;
 
-    log::debug!("Done parsing {:?}", path);
+    log::info!("Done parsing {:?}", path);
 
     // Save file as <orig_filename>_exported.csv
     let csv_filename = path.with_file_name(format!("{}_export", path.file_stem().unwrap().to_str().unwrap())).with_extension("csv");
