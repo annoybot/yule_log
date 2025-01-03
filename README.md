@@ -63,4 +63,7 @@ The `examples/` directory contains several example programs that demonstrate how
 - **ulogcat.rs**: Shows how to emit the parsed data back into a ULOG file.  This example round trips the data, parsing
  it and re-saving it to a new file.  Demonstrates the fidelity of the parser because the emitted ULOG file is typically binary identical to the input ULOG file.
 
+## License
+
+This project is licensed under an 'All Rights Reserved' licence. You may not redistribute or use the software without permission.
 
