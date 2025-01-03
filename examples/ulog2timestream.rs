@@ -1,27 +1,21 @@
+use ::futures::future::join_all;
 use std::{env, fs};
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fs::File;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH, Duration, Instant};
+use std::sync::Arc;
 use aws_config::BehaviorVersion;
 use aws_config::meta::region::RegionProviderChain;
 use aws_sdk_timestreamwrite::Client;
 use aws_sdk_timestreamwrite::types::{Dimension, MeasureValue, MeasureValueType, Record};
-use env_logger::Builder;
-use log::LevelFilter;
-use rusqlite::Connection;
 use tokio::task;
-use tokio::time;
 use tracing_subscriber;
-use ulog_rs::datastream::DataStream;
-use ulog_rs::errors::ULogError;
 use ulog_rs::parser::ULogParser;
-use std::io::{BufReader, Write};
-use aws_sdk_timestreamwrite::config::http::HttpResponse;
-use aws_sdk_timestreamwrite::error::SdkError;
+use std::io::BufReader;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
+use async_channel::{bounded, Sender};
 use aws_sdk_timestreamwrite::operation::write_records::WriteRecordsError;
 use chrono::{NaiveDateTime, TimeZone, Utc};
 use lazy_static::lazy_static;
@@ -30,8 +24,11 @@ use ulog_rs::model::inst;
 use ulog_rs::model::msg::UlogMessage;
 
 const DATABASE_NAME: &str = "dummy_database";
-const TABLE_NAME: &str = "ulog_rs_20240530T132652_4";
+const TABLE_NAME: &str = "ulog_rs_20240530T132652_new_12";
 const REPORT_INTERVAL_SECONDS: u64 = 5;
+
+const NUM_CONCURRENT_BATCHES: usize = 8;
+const BATCH_SIZE: usize = 100;
 
 lazy_static! {
         static ref ALLOWED_SUBSCRIPTION_NAMES: HashSet<String> = {
@@ -46,14 +43,20 @@ lazy_static! {
     };
 }
 
+#[derive(Debug, Clone)]
+struct UploadData {
+    bytes_read: usize,
+    aws_record: Record,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    //Amazon API initialisation.
     tracing_subscriber::fmt::init(); // Initialize tracing subscriber for logging
-
     let region_provider = RegionProviderChain::default_provider().or_else("us-west-2");
     let config = aws_config::defaults(BehaviorVersion::v2024_03_28()).region(region_provider).load().await;
 
-    // You MUST call `with_endpoint_discovery_enabled` to produce a working client for this service.
+    // ⚠️ You MUST call `with_endpoint_discovery_enabled` to produce a working client for this service.
     let client = match aws_sdk_timestreamwrite::Client::new(&config).with_endpoint_discovery_enabled().await {
         Ok(client) => client.0,
         Err(err) => {
@@ -61,15 +64,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::process::exit(1);
         }
     };
-
-    // Initialize logging
-    /*
-    Conflicts with the tracing_subscriber above
-    Builder::new()
-        .filter(None, LevelFilter::Info)
-        .format(|buf, record| writeln!(buf, "{}: {}", record.level(), record.args()))
-        .init();
-    */
 
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
@@ -79,56 +73,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let path = Path::new(&args[1]);
 
+    // Spawn a task to periodically report upload stats to the console.
     let record_count = Arc::new(AtomicUsize::new(0));
     let data_size = Arc::new(AtomicUsize::new(0));
+    let _stats_reporter_task = task::spawn(report_stats(record_count.clone(), data_size.clone()));
 
-    // Start a background task to report the metrics
-    let record_count_clone = Arc::clone(&record_count);
-    let data_size_clone = Arc::clone(&data_size);
-    tokio::spawn(async move {
-        let mut interval = time::interval(Duration::from_secs(REPORT_INTERVAL_SECONDS));
-        let mut last_record_count = 0;
-        let mut last_data_size = 0;
-        loop {
-            interval.tick().await;
-            let current_record_count = record_count_clone.load(Ordering::Relaxed);
-            let current_data_size = data_size_clone.load(Ordering::Relaxed);
-
-            let records_per_second = (current_record_count - last_record_count) as f64 / 10.0;
-            let data_size_per_second = (current_data_size - last_data_size) as f64 / 10.0 / 1024.0;
-
-            println!("Records inserted per second: {:.2}", records_per_second);
-            println!("Data size inserted per second: {:.2} KB", data_size_per_second);
-
-            last_record_count = current_record_count;
-            last_data_size = current_data_size;
-        }
-    });
+    // Spawn a task to handle process uploads to Timestream.
+    // The parser will convert ULOG messages into database Records, and will then
+    // use the following bounded channel to send them to the upload task.
+    let (sender, receiver) = bounded::<UploadData>(BATCH_SIZE * NUM_CONCURRENT_BATCHES);
+    let upload_task = task::spawn(handle_uploads(client, receiver, record_count, data_size));
 
     if path.is_dir() {
-        process_directory(&client, path, record_count, data_size).await?;
+        process_directory(path, &sender).await?;
     } else if path.is_file() {
-        process_file(&client, path, record_count, data_size).await?;
+        process_file(path, &sender).await?;
     } else {
         eprintln!("Error: The specified path is neither a file nor a directory.");
         std::process::exit(1);
     }
 
+    drop(sender);
+
+    // Wait for any remaining upload tasks to finish.
+    upload_task.await.unwrap();
+
     Ok(())
 }
 
-async fn process_file(client: &Client, ulog_path: &Path, record_count: Arc<AtomicUsize>, data_size: Arc<AtomicUsize>) -> Result<(), Box<dyn Error>> {
-    let ulog_file = File::open(ulog_path)?;
-    let reader = BufReader::new(ulog_file);
+async fn process_file(ulog_path: &Path, sender: &Sender<UploadData>) -> Result<(), Box<dyn Error>> {
+    let reader = BufReader::new(File::open(ulog_path)?);
     let mut parser = ULogParser::new(reader)?;
 
     parser.set_subscription_allow_list(ALLOWED_SUBSCRIPTION_NAMES.clone());
 
-    let file_timestamp = parse_timestamp_from_fielname(ulog_path.to_str().expect("path name was not valid utf8"))?;
-
-    let records: Vec<Record> = Vec::new();
-    let records_arc_mutex = Arc::new(Mutex::new(records));
-    let records_arc_mutex_clone = Arc::clone(&records_arc_mutex);
+    let file_timestamp = parse_timestamp_from_filename(ulog_path.to_str().expect("path name was not valid utf8"))?;
 
     for result in parser {
         let ulog_message = result?;
@@ -140,9 +119,6 @@ async fn process_file(client: &Client, ulog_path: &Path, record_count: Arc<Atomi
                 let timestamp = (logged_data.timestamp as i64 + file_timestamp).to_string();
 
                 let measure_info = create_measure_values(field_list).expect("Error creating measure values");
-
-                //FIXME: Replace with the timestamp from the ulog data record. Hardcoded for now.
-                //let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).expect("unable to get unix time").as_micros().to_string();
 
                 let dimension = Dimension::builder()
                     .name("example_dimension")
@@ -158,73 +134,103 @@ async fn process_file(client: &Client, ulog_path: &Path, record_count: Arc<Atomi
                     .dimensions(dimension)
                     .build();
 
-                let record_size = std::mem::size_of_val(&record) + measure_info.values.iter().map(|mv| std::mem::size_of_val(mv)).sum::<usize>();
-
-                records_arc_mutex_clone.lock().unwrap().push(record);
-                record_count.fetch_add(1, Ordering::Relaxed);
-                data_size.fetch_add(record_size, Ordering::Relaxed);
+                sender.send(UploadData {
+                    bytes_read: logged_data.byte_count,
+                    aws_record: record
+                }).await.expect("Failed to send record. Is the 'handle_uploads' task running?");
             }
             _ => ()
         }
     }
 
-    let records = records_arc_mutex.lock().unwrap().clone();
-    let batch_size = 100;
-    let mut tasks = vec![];
+    Ok(())
+}
 
-    for chunk in records.chunks(batch_size) {
+async fn handle_uploads(client: Client, receiver: async_channel::Receiver<UploadData>, record_count: Arc<AtomicUsize>, data_size: Arc<AtomicUsize>) {
+    let mut tasks = Vec::new();
+
+    let mut batch = Vec::with_capacity(BATCH_SIZE);
+
+    while let Ok(upload_data) = receiver.recv().await {
+        batch.push(upload_data);
+
+        if batch.len() >= BATCH_SIZE {
+            let client_clone = client.clone();
+            let batch_to_send = std::mem::replace(&mut batch, Vec::with_capacity(BATCH_SIZE));
+
+            let task = task::spawn( upload_batch(client_clone, batch_to_send, record_count.clone(), data_size.clone()));
+            tasks.push(task);
+        }
+    }
+
+    // If the batch vec contains unsent records, send them.
+    if !batch.is_empty() {
         let client_clone = client.clone();
-        let chunk = chunk.to_vec();
-        let task = task::spawn(async move {
-            let write_request = client_clone.write_records()
-                .database_name(DATABASE_NAME)
-                .table_name(TABLE_NAME)
-                .set_records(Some(chunk.clone()))
-                .send()
-                .await;
-
-            match write_request {
-                Ok(_) => println!("Batch written successfully"),
-                Err(err) =>  {
-
-                    if let Some(service_error) = err.as_service_error() {
-                        match service_error {
-                            WriteRecordsError::AccessDeniedException(_) => {}
-                            WriteRecordsError::InternalServerException(_) => {}
-                            WriteRecordsError::InvalidEndpointException(_) => {}
-                            WriteRecordsError::RejectedRecordsException(rejected) => {
-
-                                let rejected_records  = rejected.rejected_records.clone().unwrap();
-
-                                for rejected_record in rejected_records.iter() {
-
-                                    let record_index = rejected_record.record_index;
-
-                                    log::error!("Rejected record: {:?}", chunk[record_index as usize]);
-                                }
-                            }
-                            WriteRecordsError::ResourceNotFoundException(_) => {}
-                            WriteRecordsError::ThrottlingException(_) => {}
-                            WriteRecordsError::ValidationException(_) => {}
-                            WriteRecordsError::Unhandled(_) => {}
-                            _ => {}
-                        }
-                    }
-                    panic!("Error writing batch: {:?}", err)
-                },
-            };
-        });
+        let task = task::spawn( upload_batch(client_clone, batch, record_count, data_size));
         tasks.push(task);
     }
 
-    // Await completion of all tasks
-    for task in tasks {
-        task.await.unwrap();
+    join_all(tasks).await;
+}
+
+async fn upload_batch(client: Client, batch_to_send: Vec<UploadData>, record_count:Arc<AtomicUsize>, data_size:Arc<AtomicUsize>) {
+    let batch_len = batch_to_send.len();
+    let batch_size = batch_to_send.iter().fold(0, |len, b| len + b.bytes_read );
+    let records:Vec<Record> = batch_to_send.into_iter().map(|x| x.aws_record).collect();
+
+    let write_request = client.write_records()
+        .database_name(DATABASE_NAME)
+        .table_name(TABLE_NAME)
+        .set_records(Some(records.clone()))  // This clone is unfortunately needed to allow detailed error reporting below in case f rejected records.
+        .send()
+        .await;
+
+    match write_request {
+        Ok(_) => {
+            // Increment the record_count and data_size for the stats reporting task.
+            record_count.fetch_add(batch_len, Ordering::Relaxed);
+            data_size.fetch_add(batch_size, Ordering::Relaxed);
+        },
+        Err(err) => {
+            // If the error contains rejected records, log them specifically.
+            if let Some(service_error) = err.as_service_error() {
+                if let WriteRecordsError::RejectedRecordsException(rejected) = service_error {
+                    let rejected_records = rejected.rejected_records.clone().unwrap_or_else(Vec::new);
+                    for rejected_record in rejected_records.iter() {
+                        let record_index = rejected_record.record_index;
+                        log::error!("Rejected record at index {}: {:?}", record_index, records[record_index as usize]);
+                    }
+                }
+            } else {
+                log::error!("Error writing batch: {:?}", err);
+            }
+
+            // ⚠️FIXME: Remove this for production use.  Only for testing.
+            panic!("Error writing batch: {:?}", err);
+        }
     }
+}
 
-    log::info!("Done parsing and processing data for {:?}", ulog_path);
+async fn report_stats(record_count:Arc<AtomicUsize>, data_size:Arc<AtomicUsize>) {
+    let mut last_record_count:usize = 0;
+    let mut last_data_size:usize = 0;
 
-    Ok(())
+    // Print statistics every REPORT_INTERVAL_SECONDS
+    loop {
+        tokio::time::sleep(Duration::from_secs(REPORT_INTERVAL_SECONDS)).await;
+
+        let current_record_count = record_count.load(std::sync::atomic::Ordering::Relaxed) - last_record_count;
+        let current_data_size = data_size.load(std::sync::atomic::Ordering::Relaxed) - last_data_size;
+
+        let records_per_second = current_record_count as f64 / REPORT_INTERVAL_SECONDS as f64;
+        let data_size_per_second = current_data_size as f64 / REPORT_INTERVAL_SECONDS as f64 / 1024.0;
+
+        println!("Records inserted per second: {:.2}", records_per_second);
+        println!("Data size inserted per second: {:.2} KB", data_size_per_second);
+
+        last_record_count = current_record_count;
+        last_data_size = current_data_size;
+    }
 }
 
 struct MeasureInfo {
@@ -233,18 +239,11 @@ struct MeasureInfo {
 }
 
 fn create_measure_values(field_list: Vec<(String, inst::BaseType)>) -> Result<MeasureInfo, Box<dyn Error>> {
-
-    let dimension = Dimension::builder()
-        .name("example_dimension")
-        .value("example_value")
-        .build()?;
-
     let mut measure_values: Vec<MeasureValue> = Vec::with_capacity(field_list.len());
-
     let mut measure_name:Option<String> = None;
 
     for (field, datatype) in &field_list {
-        
+
         //split the field name at the first '/' into measure name and field_name
         let split: Vec<&str> = field.splitn(2, '/').collect();
         measure_name = Some(split[0].to_string());
@@ -276,9 +275,11 @@ fn create_measure_values(field_list: Vec<(String, inst::BaseType)>) -> Result<Me
     Ok( MeasureInfo { name: measure_name.unwrap(), values: measure_values} )
 }
 
+/*
 lazy_static!{
     static ref MEASURE_TYPES: Arc<Mutex<HashMap<String, MeasureValueType>>> = Arc::new(Mutex::new(HashMap::new()));
 }
+*/
 
 fn map_datatype_to_timestream(field_name: &str, value: inst::BaseType) -> (MeasureValueType, Option<String>) {
     let result = match value {
@@ -304,17 +305,19 @@ fn map_datatype_to_timestream(field_name: &str, value: inst::BaseType) -> (Measu
                 (MeasureValueType::Double, Some(v.to_string()))
             }
         },
+        // FIXME: Investigate if this problem with booleans is still an issue.
         // ⚠️ inst::BaseType::BOOL should really be treated as a MeasureValueType::Boolean, but Timestream
         //     seems to not be able to handle NULL values for boolean fields?
         //     Whatever the cause we are getting errors from Timestream:  "Each multi measure name can have only one measure value type and cannot be changed."
         //     We are noticing that the type is sometimes interpreted as a Boolean and sometimes as a bigint.
         //     ( Field usb_connected has inconsistent data types (BOOLEAN vs BIGINT)
-        //inst::BaseType::BOOL(v) => (MeasureValueType::Boolean, if v { Some("True".to_string()) } else { Some("False".to_string()) }),
-        inst::BaseType::BOOL(v) => (MeasureValueType::Bigint, if v { Some("1".to_string()) } else { Some("0".to_string()) }),
+        //inst::BaseType::BOOL(v) => (MeasureValueType::Bigint, if v { Some("1".to_string()) } else { Some("0".to_string()) }),
+        inst::BaseType::BOOL(v) => (MeasureValueType::Boolean, if v { Some("True".to_string()) } else { Some("False".to_string()) }),
         inst::BaseType::CHAR(v) => (MeasureValueType::Varchar, Some(v.to_string())),
         _ => panic!("Unsupported data type"),
     };
 
+    /*
     let mut measure_types = MEASURE_TYPES.lock().unwrap();
 
     if let Some(measure_type) = measure_types.get(field_name) {
@@ -324,11 +327,12 @@ fn map_datatype_to_timestream(field_name: &str, value: inst::BaseType) -> (Measu
     } else {
         measure_types.insert(field_name.to_string(), result.0.clone());
     }
+    */
 
     result
 }
 
-async fn process_directory(client: &Client, dir: &Path, record_count: Arc<AtomicUsize>, data_size: Arc<AtomicUsize>) -> Result<(), Box<dyn Error>> {
+async fn process_directory(dir: &Path, sender: &Sender<UploadData>) -> Result<(), Box<dyn Error>> {
     // Find all ULOG files in the specified directory
     let ulg_files: Vec<_> = fs::read_dir(dir)?
         .filter_map(Result::ok) // Handle possible errors
@@ -337,7 +341,7 @@ async fn process_directory(client: &Client, dir: &Path, record_count: Arc<Atomic
         .collect();
 
     for path in ulg_files {
-        process_file(client, &path, Arc::clone(&record_count), Arc::clone(&data_size)).await?;
+        process_file(&path, sender).await?;
     }
     Ok(())
 }
@@ -346,7 +350,7 @@ lazy_static! {
     static ref ULG_FILENAME_REGEX: Regex = Regex::new(r"log_\d+_(\d{4})-(\d{1,2})-(\d{1,2})-(\d{1,2})-(\d{2})-(\d{2})\.ulg").unwrap();
 }
 
-fn parse_timestamp_from_fielname(ulg_path: &str) -> Result<i64, Box<dyn Error>> {
+fn parse_timestamp_from_filename(ulg_path: &str) -> Result<i64, Box<dyn Error>> {
     // Get the basename of the path
     let ulg_basename = Path::new(ulg_path)
         .file_name()
