@@ -161,7 +161,7 @@ mod tests {
         
         let parsed_format = parse_format(message_buf).unwrap();
         
-        let re_emitted_bytes = parsed_format.to_bytes();
+        let re_emitted_bytes:Vec<u8> = parsed_format.into();
         
         println!("re_emitted_bytes: {:?}", String::from_utf8(re_emitted_bytes.clone()).unwrap());
         

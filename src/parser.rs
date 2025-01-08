@@ -319,6 +319,7 @@ impl<R: Read> ULogParser<R> {
 
     fn parse_data_message(&self, sub: msg::Subscription, mut message_buf: MessageBuf) -> Result<msg::LoggedData, ULogError> {
         let format = self.get_format(&sub.message_name)?;
+        let message_len = message_buf.len();
 
         if !format.fields.iter().any(|f| f.name == "timestamp") {
             return Err(ULogError::MissingTimestamp);
@@ -348,6 +349,7 @@ impl<R: Read> ULogParser<R> {
         Ok( msg::LoggedData {
                 timestamp,
                 msg_id: sub.msg_id,
+                byte_count: message_len,
                 data: data_format,
             })
     }
@@ -813,7 +815,7 @@ mod tests {
         let parsed_subscription = parser.parse_subscription(message_buf).expect("Unable to parse subscription");
         println!("parsed_subscription: {:?}", parsed_subscription);
 
-        let emitted_bytes = parsed_subscription.to_bytes();
+        let emitted_bytes:Vec<u8> = parsed_subscription.into();
         println!("Emitted bytes: {:?}", emitted_bytes);
 
         assert_eq!(emitted_bytes, input_bytes);

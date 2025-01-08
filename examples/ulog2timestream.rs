@@ -1,27 +1,27 @@
+use async_channel::{bounded, Sender};
+use aws_config::meta::region::RegionProviderChain;
+use aws_config::BehaviorVersion;
+use aws_sdk_timestreamwrite::operation::write_records::WriteRecordsError;
+use aws_sdk_timestreamwrite::types::{Dimension, MeasureValue, MeasureValueType, Record};
+use aws_sdk_timestreamwrite::Client;
+use chrono::{NaiveDateTime, TimeZone, Utc};
 use ::futures::future::join_all;
-use std::{env, fs};
+use lazy_static::lazy_static;
+use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fs::File;
+use std::io::BufReader;
 use std::path::Path;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use aws_config::BehaviorVersion;
-use aws_config::meta::region::RegionProviderChain;
-use aws_sdk_timestreamwrite::Client;
-use aws_sdk_timestreamwrite::types::{Dimension, MeasureValue, MeasureValueType, Record};
+use std::time::Duration;
+use std::{env, fs};
 use tokio::task;
 use tracing_subscriber;
-use ulog_rs::parser::ULogParser;
-use std::io::BufReader;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::Duration;
-use async_channel::{bounded, Sender};
-use aws_sdk_timestreamwrite::operation::write_records::WriteRecordsError;
-use chrono::{NaiveDateTime, TimeZone, Utc};
-use lazy_static::lazy_static;
-use regex::Regex;
 use ulog_rs::model::inst;
 use ulog_rs::model::msg::UlogMessage;
+use ulog_rs::parser::ULogParser;
 
 const DATABASE_NAME: &str = "dummy_database";
 const TABLE_NAME: &str = "ulog_rs_20240530T132652_new_12";
@@ -136,7 +136,7 @@ async fn process_file(ulog_path: &Path, sender: &Sender<UploadData>) -> Result<(
 
                 sender.send(UploadData {
                     bytes_read: logged_data.byte_count,
-                    aws_record: record
+                    aws_record: record,
                 }).await.expect("Failed to send record. Is the 'handle_uploads' task running?");
             }
             _ => ()
@@ -158,7 +158,7 @@ async fn handle_uploads(client: Client, receiver: async_channel::Receiver<Upload
             let client_clone = client.clone();
             let batch_to_send = std::mem::replace(&mut batch, Vec::with_capacity(BATCH_SIZE));
 
-            let task = task::spawn( upload_batch(client_clone, batch_to_send, record_count.clone(), data_size.clone()));
+            let task = task::spawn(upload_batch(client_clone, batch_to_send, record_count.clone(), data_size.clone()));
             tasks.push(task);
         }
     }
@@ -166,17 +166,17 @@ async fn handle_uploads(client: Client, receiver: async_channel::Receiver<Upload
     // If the batch vec contains unsent records, send them.
     if !batch.is_empty() {
         let client_clone = client.clone();
-        let task = task::spawn( upload_batch(client_clone, batch, record_count, data_size));
+        let task = task::spawn(upload_batch(client_clone, batch, record_count, data_size));
         tasks.push(task);
     }
 
     join_all(tasks).await;
 }
 
-async fn upload_batch(client: Client, batch_to_send: Vec<UploadData>, record_count:Arc<AtomicUsize>, data_size:Arc<AtomicUsize>) {
+async fn upload_batch(client: Client, batch_to_send: Vec<UploadData>, record_count: Arc<AtomicUsize>, data_size: Arc<AtomicUsize>) {
     let batch_len = batch_to_send.len();
-    let batch_size = batch_to_send.iter().fold(0, |len, b| len + b.bytes_read );
-    let records:Vec<Record> = batch_to_send.into_iter().map(|x| x.aws_record).collect();
+    let batch_size = batch_to_send.iter().fold(0, |len, b| len + b.bytes_read);
+    let records: Vec<Record> = batch_to_send.into_iter().map(|x| x.aws_record).collect();
 
     let write_request = client.write_records()
         .database_name(DATABASE_NAME)
@@ -190,7 +190,7 @@ async fn upload_batch(client: Client, batch_to_send: Vec<UploadData>, record_cou
             // Increment the record_count and data_size for the stats reporting task.
             record_count.fetch_add(batch_len, Ordering::Relaxed);
             data_size.fetch_add(batch_size, Ordering::Relaxed);
-        },
+        }
         Err(err) => {
             // If the error contains rejected records, log them specifically.
             if let Some(service_error) = err.as_service_error() {
@@ -211,9 +211,9 @@ async fn upload_batch(client: Client, batch_to_send: Vec<UploadData>, record_cou
     }
 }
 
-async fn report_stats(record_count:Arc<AtomicUsize>, data_size:Arc<AtomicUsize>) {
-    let mut last_record_count:usize = 0;
-    let mut last_data_size:usize = 0;
+async fn report_stats(record_count: Arc<AtomicUsize>, data_size: Arc<AtomicUsize>) {
+    let mut last_record_count: usize = 0;
+    let mut last_data_size: usize = 0;
 
     // Print statistics every REPORT_INTERVAL_SECONDS
     loop {
@@ -240,7 +240,7 @@ struct MeasureInfo {
 
 fn create_measure_values(field_list: Vec<(String, inst::BaseType)>) -> Result<MeasureInfo, Box<dyn Error>> {
     let mut measure_values: Vec<MeasureValue> = Vec::with_capacity(field_list.len());
-    let mut measure_name:Option<String> = None;
+    let mut measure_name: Option<String> = None;
 
     for (field, datatype) in &field_list {
 
@@ -268,11 +268,11 @@ fn create_measure_values(field_list: Vec<(String, inst::BaseType)>) -> Result<Me
                 .set_value(value)
                 .build()?;
 
-            measure_values.push( measure_value);
+            measure_values.push(measure_value);
         }
     }
 
-    Ok( MeasureInfo { name: measure_name.unwrap(), values: measure_values} )
+    Ok(MeasureInfo { name: measure_name.unwrap(), values: measure_values })
 }
 
 /*
@@ -297,14 +297,14 @@ fn map_datatype_to_timestream(field_name: &str, value: inst::BaseType) -> (Measu
             } else {
                 (MeasureValueType::Double, Some(v.to_string()))
             }
-        },
+        }
         inst::BaseType::DOUBLE(v) => {
             if v == f64::INFINITY || v == f64::NEG_INFINITY || v.is_nan() {
                 (MeasureValueType::Double, None)
             } else {
                 (MeasureValueType::Double, Some(v.to_string()))
             }
-        },
+        }
         // FIXME: Investigate if this problem with booleans is still an issue.
         // ⚠️ inst::BaseType::BOOL should really be treated as a MeasureValueType::Boolean, but Timestream
         //     seems to not be able to handle NULL values for boolean fields?

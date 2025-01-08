@@ -53,7 +53,7 @@ fn process_file(ulog_path: Box<Path>) -> Result<(), Box<dyn Error>> {
     for result in parser {
         let ulog_message = result?;
 
-        let bytes = ulog_message.to_bytes();
+        let bytes:Vec<u8> = ulog_message.into();
 
         // Write the bytes to the output file in ULOG format.
         output_file.write_all(&bytes)?;

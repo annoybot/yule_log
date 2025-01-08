@@ -1,10 +1,17 @@
 use crate::model::{def, inst, msg};
+use crate::model::def::Format;
 use crate::model::msg::{LoggedData, UlogMessage};
 use crate::parser::ULogMessageType;
 
 // msg
-impl UlogMessage {
-    pub fn to_bytes(&self) -> Vec<u8> {
+impl From<UlogMessage> for Vec<u8> {
+    fn from(ulog_msg: UlogMessage) -> Self {
+        (&ulog_msg).into()
+    }
+}
+
+impl From<&UlogMessage> for Vec<u8>  {
+    fn from(ulog_msg: &UlogMessage) -> Self {
         struct Message {
             msg_size: u16,
             msg_type: u8,
@@ -12,7 +19,8 @@ impl UlogMessage {
         }
 
         impl Message {
-            fn new(msg_type: u8, content_bytes: Vec<u8>) -> Self {
+            fn new<T: Into<Vec<u8>>>(msg_type: u8, content_bytes: T) -> Self {
+                let content_bytes = content_bytes.into();
                 Message {
                     msg_size: content_bytes.len() as u16,
                     msg_type,
@@ -30,55 +38,44 @@ impl UlogMessage {
             }
         }
 
-        let message = match self {
+        let message = match ulog_msg {
             UlogMessage::Header(header) => {
                 // The header is not really a ULog message.
                 // Return the raw byte representation only.
                 return header.to_bytes();
             }
             UlogMessage::FlagBits(flag_bits) => {
-                let content_bytes = flag_bits.to_bytes();
-                Message::new(ULogMessageType::FLAG_BITS.into(), content_bytes)
+                Message::new(ULogMessageType::FLAG_BITS.into(), flag_bits)
             }
             UlogMessage::FormatDefinition(format) => {
-                let content_bytes = format.to_bytes();
-                Message::new(ULogMessageType::FORMAT.into(), content_bytes)
+                Message::new(ULogMessageType::FORMAT.into(), format)
             }
             UlogMessage::LoggedData(logged_data) => {
-                let content_bytes = logged_data.to_bytes();
-                Message::new(ULogMessageType::DATA.into(), content_bytes)
+                Message::new(ULogMessageType::DATA.into(), logged_data)
             }
             UlogMessage::AddSubscription(sub) => {
-                let content_bytes = sub.to_bytes();
-                Message::new(ULogMessageType::ADD_SUBSCRIPTION.into(), content_bytes)
+                Message::new(ULogMessageType::ADD_SUBSCRIPTION.into(), sub)
             }
             UlogMessage::Info(info) => {
-                let content_bytes = info.to_bytes();
-                Message::new(ULogMessageType::INFO.into(), content_bytes)
+                Message::new(ULogMessageType::INFO.into(), info)
             }
             UlogMessage::MultiInfo(info) => {
-                let content_bytes = info.to_bytes();
-                Message::new(ULogMessageType::INFO_MULTIPLE.into(), content_bytes)
+                Message::new(ULogMessageType::INFO_MULTIPLE.into(), info)
             }
             UlogMessage::Parameter(param) => {
-                let content_bytes = param.to_bytes();
-                Message::new(ULogMessageType::PARAMETER.into(), content_bytes)
+                Message::new(ULogMessageType::PARAMETER.into(), param)
             }
             UlogMessage::DefaultParameter(param) => {
-                let content_bytes = param.to_bytes();
-                Message::new(ULogMessageType::PARAMETER_DEFAULT.into(), content_bytes)
+                Message::new(ULogMessageType::PARAMETER_DEFAULT.into(), param)
             }
             UlogMessage::LoggedString(logged_string) => {
-                let content_bytes = logged_string.to_bytes();
-                Message::new(ULogMessageType::LOGGING.into(), content_bytes)
+                Message::new(ULogMessageType::LOGGING.into(), logged_string)
             }
             UlogMessage::TaggedLoggedString(logged_string) => {
-                let content_bytes = logged_string.to_bytes();
-                Message::new(ULogMessageType::LOGGING_TAGGED.into(), content_bytes)
+                Message::new(ULogMessageType::LOGGING_TAGGED.into(), logged_string)
             }
             UlogMessage::DropoutMark(dropout) => {
-                let content_bytes = dropout.to_bytes();
-                Message::new(ULogMessageType::DROPOUT.into(), content_bytes)
+                Message::new(ULogMessageType::DROPOUT.into(), dropout)
             }
             UlogMessage::Unhandled { msg_type, message_contents } => {
                 Message::new(*msg_type, message_contents.clone())
@@ -92,165 +89,230 @@ impl UlogMessage {
     }
 }
 
+impl From<msg::FlagBits> for Vec<u8> {
+    fn from(flag_bits: msg::FlagBits) -> Self {
+        (&flag_bits).into()
+    }
+}
 
-impl msg::FlagBits {
-    pub fn to_bytes(&self) -> Vec<u8> {
+impl From<&msg::FlagBits> for Vec<u8> {
+    fn from(flag_bits: &msg::FlagBits) -> Self {
         let mut bytes = Vec::with_capacity(8 * 8 + 3 * 8); // compat_flags + incompat_flags + appended_data_offsets
 
-        bytes.extend_from_slice(&self.compat_flags);          // 8 bytes for compat_flags
-        bytes.extend_from_slice(&self.incompat_flags);       // 8 bytes for incompat_flags
-        for &offset in &self.appended_data_offsets {         // 3 * 8 bytes for appended_data_offsets
+        bytes.extend_from_slice(&flag_bits.compat_flags);         // 8 bytes for compat_flags
+        bytes.extend_from_slice(&flag_bits.incompat_flags);       // 8 bytes for incompat_flags
+        for &offset in &flag_bits.appended_data_offsets {   // 3 * 8 bytes for appended_data_offsets
             bytes.extend_from_slice(&offset.to_le_bytes());
         }
         bytes
     }
 }
 
+impl From<msg::Subscription> for Vec<u8> {
+    fn from(subscription: msg::Subscription) -> Self {
+        (&subscription).into()
+    }
+}
 
-impl msg::Subscription {
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let mut result = Vec::with_capacity(3 + self.message_name.len());
+impl From<&msg::Subscription> for Vec<u8> {
+    fn from(subscription: &msg::Subscription) -> Self {
+        let mut bytes = Vec::with_capacity(3 + subscription.message_name.len());
 
         // Emit the subscription data
-        result.push(self.multi_id);
-        result.extend(&self.msg_id.to_le_bytes());
-        result.extend(self.message_name.as_bytes());
-
-        result
-    }
-}
-
-impl LoggedData {
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-
-        bytes.extend_from_slice(&(self.msg_id).to_le_bytes());
-        bytes.extend_from_slice(&self.data.to_bytes());
+        bytes.push(subscription.multi_id);
+        bytes.extend(&subscription.msg_id.to_le_bytes());
+        bytes.extend(subscription.message_name.as_bytes());
 
         bytes
     }
 }
 
-impl msg::Info {
-    pub fn to_bytes(&self) -> Vec<u8> {
+
+impl From<LoggedData> for Vec<u8> {
+    fn from(logged_data: LoggedData) -> Self {
+        logged_data.into()
+    }
+}
+
+impl From<&LoggedData> for Vec<u8>  {
+    fn from(logged_data: &LoggedData) -> Self {
         let mut bytes = Vec::new();
 
-        let mut key_bytes = self.r#type.to_bytes();
+        bytes.extend_from_slice(&(logged_data.msg_id).to_le_bytes());
+        bytes.extend_from_slice(&Vec::from(&logged_data.data));
+
+        bytes
+    }
+}
+
+impl From<msg::Info> for Vec<u8> {
+    fn from(info: msg::Info) -> Self {
+        (&info).into()
+    }
+}
+
+impl From<&msg::Info> for Vec<u8>  {
+    fn from(info: &msg::Info) -> Self {
+        let mut bytes = Vec::new();
+
+        let mut key_bytes:Vec<u8> = (&info.r#type).into();
         key_bytes.push(b' ');
-        key_bytes.extend_from_slice(self.key.as_bytes());
+        key_bytes.extend_from_slice(info.key.as_bytes());
 
 
         bytes.push(key_bytes.len() as u8);
         bytes.extend(key_bytes);
-        bytes.extend_from_slice(&self.value.to_bytes());
+        bytes.extend_from_slice(&Vec::from(&info.value));
 
         bytes
     }
 }
 
-impl msg::MultiInfo {
-    pub fn to_bytes(&self) -> Vec<u8> {
+impl From<msg::MultiInfo> for Vec<u8>  {
+    fn from(multi_info: msg::MultiInfo) -> Self {
+        (&multi_info).into()
+    }
+}
+
+impl From<&msg::MultiInfo> for Vec<u8>  {
+    fn from(multi_info: &msg::MultiInfo) -> Self {
         let mut bytes = Vec::new();
 
-        bytes.push(u8::from(self.is_continued));
+        bytes.push(u8::from(multi_info.is_continued));
 
-        let mut key_bytes = self.r#type.to_bytes();
+        let mut key_bytes:Vec<u8> = (&multi_info.r#type).into();
         key_bytes.push(b' ');
-        key_bytes.extend_from_slice(self.key.as_bytes());
+        key_bytes.extend_from_slice(multi_info.key.as_bytes());
 
         bytes.push(key_bytes.len() as u8);
         bytes.extend(key_bytes);
-        bytes.extend_from_slice(&self.value.to_bytes());
+        bytes.extend_from_slice(&Vec::from(&multi_info.value));
 
         bytes
     }
 }
 
-impl msg::Parameter {
-    pub fn to_bytes(&self) -> Vec<u8> {
+impl From<msg::Parameter> for Vec<u8> {
+    fn from(param: msg::Parameter) -> Self {
+        (&param).into()
+    }
+}
+
+impl From<&msg::Parameter> for Vec<u8>  {
+    fn from(param: &msg::Parameter) -> Self {
         let mut bytes = Vec::new();
 
         // Parameter values are always scalars, hence: is_array == false.
-        let mut key_bytes = self.r#type.to_bytes();
+        let mut key_bytes:Vec<u8> = (&param.r#type).into();
         key_bytes.push(b' ');
-        key_bytes.extend_from_slice(self.key.as_bytes());
+        key_bytes.extend_from_slice(param.key.as_bytes());
 
         bytes.push(key_bytes.len() as u8);
         bytes.extend(key_bytes);
-        bytes.extend_from_slice(&self.value.to_bytes());
+        bytes.extend_from_slice(&Vec::from(&param.value));
 
         bytes
     }
 }
 
-impl msg::DefaultParameter {
-    pub fn to_bytes(&self) -> Vec<u8> {
+impl From<msg::DefaultParameter> for Vec<u8> {
+    fn from(default_parameter: msg::DefaultParameter) -> Self {
+        (&default_parameter).into()
+    }
+}
+
+impl From<&msg::DefaultParameter> for Vec<u8>  {
+    fn from(default_parameter: &msg::DefaultParameter) -> Self {
         let mut bytes = Vec::new();
 
-        bytes.push(self.default_types);
+        bytes.push(default_parameter.default_types);
 
-        let mut key_bytes = self.r#type.to_bytes();
+        let mut key_bytes:Vec<u8> = (&default_parameter.r#type).into();
         key_bytes.push(b' ');
-        key_bytes.extend_from_slice(self.key.as_bytes());
+        key_bytes.extend_from_slice(default_parameter.key.as_bytes());
 
         bytes.push(key_bytes.len() as u8);
         bytes.extend(key_bytes);
 
-        bytes.extend_from_slice(&self.value.to_bytes());
+        bytes.extend_from_slice(&Vec::from(&default_parameter.value));
 
         bytes
     }
 }
 
+impl From<msg::LoggedString> for Vec<u8> {
+    fn from(logged_string: msg::LoggedString) -> Self {
+        (&logged_string).into()
+    }
+}
 
-impl msg::LoggedString {
-    pub fn to_bytes(&self) -> Vec<u8> {
+impl From<&msg::LoggedString> for Vec<u8>  {
+    fn from(logged_string: &msg::LoggedString) -> Self {
         let mut bytes = Vec::new();
 
-        bytes.push(self.level as u8);
+        bytes.push(logged_string.level as u8);
 
-        if let Some(tag) = self.tag {
+        if let Some(tag) = logged_string.tag {
             bytes.extend_from_slice(&tag.to_le_bytes());
         }
 
         // Serialize timestamp as a little-endian u64
-        bytes.extend_from_slice(&self.timestamp.to_le_bytes());
-        bytes.extend_from_slice(self.msg.as_bytes());
+        bytes.extend_from_slice(&logged_string.timestamp.to_le_bytes());
+        bytes.extend_from_slice(logged_string.msg.as_bytes());
 
         bytes
     }
 }
 
-impl msg::Dropout {
-    pub fn to_bytes(&self) -> Vec<u8> {
+
+impl From<msg::Dropout> for Vec<u8> {
+    fn from(dropout: msg::Dropout) -> Self {
+        (&dropout).into()
+    }
+}
+
+impl From<&msg::Dropout> for Vec<u8>  {
+    fn from(dropout: &msg::Dropout) -> Self {
         let mut bytes = Vec::new();
 
-        bytes.extend(self.duration.to_le_bytes());
+        bytes.extend(dropout.duration.to_le_bytes());
 
         bytes
     }
 }
 
-impl msg::LogLevel {
-    pub fn to_bytes(&self) -> Vec<u8> {
-        vec![*self as u8]
+impl From<msg::LogLevel> for Vec<u8> {
+    fn from(log_level: msg::LogLevel) -> Self {
+        (&log_level).into()
+    }
+}
+
+impl From<&msg::LogLevel> for Vec<u8>  {
+    fn from(log_level: &msg::LogLevel) -> Self {
+        vec![*log_level as u8]
     }
 }
 
 // def
 
-impl def::Format {
-    pub fn to_bytes(&self) -> Vec<u8> {
+impl From<def::Format> for Vec<u8> {
+    fn from(format: Format) -> Self {
+        (&format).into()
+    }
+}
+
+impl From<&def::Format> for Vec<u8>  {
+    fn from(format: &def::Format) -> Self {
         let mut bytes = Vec::new();
 
         // Emit the message name (String) as bytes
-        bytes.extend_from_slice(self.name.as_bytes());
+        bytes.extend_from_slice(format.name.as_bytes());
         bytes.push(b':'); // Emit the colon separator after the message name
 
         // Emit the bytes for each field with a trailing semicolon
-        for  field in &self.fields {
+        for  field in &format.fields {
             // Convert the field to bytes
-            bytes.extend_from_slice(&field.to_bytes());
+            bytes.extend_from_slice(&Vec::from(field));
             bytes.push(b';'); // Trailing semicolon after each field
         }
 
@@ -258,14 +320,20 @@ impl def::Format {
     }
 }
 
-impl def::Field {
-    pub fn to_bytes(&self) -> Vec<u8> {
+impl From<def::Field> for Vec<u8> {
+    fn from(field: def::Field) -> Self {
+        (&field).into()
+    }
+}
+
+impl From<&def::Field> for Vec<u8>  {
+    fn from(field: &def::Field) -> Self {
         let mut bytes = Vec::new();
 
         // Emit the base type (ex. uint8_t)
-        bytes.extend_from_slice(&self.r#type.base_type.to_bytes());
+        bytes.extend_from_slice(&Vec::from(&field.r#type.base_type));
 
-        match self.r#type.array_size {
+        match field.r#type.array_size {
             None => (),
             Some(array_size) => {
                 bytes.push(b'[');
@@ -277,20 +345,26 @@ impl def::Field {
         bytes.push(b' ');
 
         // Append the field name
-        bytes.extend_from_slice(self.name.as_bytes());
+        bytes.extend_from_slice(field.name.as_bytes());
 
         bytes
     }
 }
 
-impl def::TypeExpr {
-    pub fn to_bytes(&self) -> Vec<u8> {
+impl From<def::TypeExpr> for Vec<u8> {
+    fn from(type_expr: def::TypeExpr) -> Self {
+        (&type_expr).into()
+    }
+}
+
+impl From<&def::TypeExpr> for Vec<u8>  {
+    fn from(type_expr: &def::TypeExpr) -> Self {
         let mut bytes = Vec::new();
 
         // Emit the base type (ex. uint8_t)
-        bytes.extend_from_slice(&self.base_type.to_bytes());
+        bytes.extend_from_slice(&Vec::from(&type_expr.base_type));
 
-        match self.array_size {
+        match type_expr.array_size {
             None => (),
             Some(array_size) => {
                 bytes.push(b'[');
@@ -303,44 +377,67 @@ impl def::TypeExpr {
     }
 }
 
+impl From<def::BaseType> for Vec<u8> {
+    fn from(base_type: def::BaseType) -> Self {
+        (&base_type).into()
+    }
+}
 
-impl def::BaseType {
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let type_string = self.to_string();
+impl From<&def::BaseType> for Vec<u8>  {
+    fn from(base_type: &def::BaseType) -> Self {
+        let type_string = base_type.to_string();
         type_string.into_bytes()
     }
 }
 
 // inst
 
-impl inst::Format {
-    pub fn to_bytes(&self) -> Vec<u8> {
+impl From<inst::Format> for Vec<u8> {
+    fn from(format: inst::Format) -> Self {
+        (&format).into()
+    }
+}
+
+impl From<&inst::Format> for Vec<u8>  {
+    fn from(format: &inst::Format) -> Self {
         let mut bytes:Vec<u8> = Vec::new();
 
         // Serialise fields only
-        for field in &self.fields {
-            bytes.extend(field.to_bytes());
+        for field in &format.fields {
+            bytes.extend(Vec::from(field));
         }
 
         bytes
     }
 }
 
-impl inst::Field {
-    pub fn to_bytes(&self) -> Vec<u8> {
-        // Serilalise value only
-        self.value.to_bytes()
+impl From<inst::Field> for Vec<u8> {
+    fn from(field: inst::Field) -> Self {
+        (&field).into()
     }
 }
 
-impl inst::FieldValue {
-    pub fn to_bytes(&self) -> Vec<u8> {
-        match self {
-            inst::FieldValue::SCALAR(base_type) => base_type.to_bytes(),
+impl From<&inst::Field> for Vec<u8>  {
+    fn from(field: &inst::Field) -> Self {
+        // Serilalise value only
+        Vec::from(&field.value)
+    }
+}
+
+impl From<inst::FieldValue> for Vec<u8> {
+    fn from(field_value: inst::FieldValue) -> Self {
+        (&field_value).into()
+    }
+}
+
+impl From<&inst::FieldValue> for Vec<u8>  {
+    fn from(field_value: &inst::FieldValue) -> Self {
+        match field_value {
+            inst::FieldValue::SCALAR(base_type) => Vec::from(base_type),
             inst::FieldValue::ARRAY(arr) => {
                 let mut bytes = Vec::new();
                 for value in arr {
-                    bytes.extend(value.to_bytes());
+                    bytes.extend(Vec::from(value));
                 }
                 bytes
             }
@@ -348,9 +445,15 @@ impl inst::FieldValue {
     }
 }
 
-impl inst::BaseType {
-    pub fn to_bytes(&self) -> Vec<u8> {
-        match self {
+impl From<inst::BaseType> for Vec<u8> {
+    fn from(base_type: inst::BaseType) -> Self {
+        (&base_type).into()
+    }
+}
+
+impl From<&inst::BaseType> for Vec<u8>  {
+    fn from(base_type: &inst::BaseType) -> Self {
+        match base_type {
             inst::BaseType::UINT8(v) => v.to_le_bytes().to_vec(),
             inst::BaseType::UINT16(v) => v.to_le_bytes().to_vec(),
             inst::BaseType::UINT32(v) => v.to_le_bytes().to_vec(),
@@ -363,21 +466,25 @@ impl inst::BaseType {
             inst::BaseType::DOUBLE(v) => v.to_le_bytes().to_vec(),
             inst::BaseType::BOOL(v) => if *v { vec![ 1u8 ] } else { vec![0u8] },
             inst::BaseType::CHAR(v) => vec![*v as u8],
-            inst::BaseType::OTHER(format) => format.to_bytes(),
+            inst::BaseType::OTHER(format) => format.into(),
         }
     }
 }
 
-impl inst::ParameterValue {
-    pub fn to_bytes(&self) -> Vec<u8> {
-        match self {
+impl From<inst::ParameterValue> for Vec<u8> {
+    fn from(parameter_value: inst::ParameterValue) -> Self {
+        (&parameter_value).into()
+    }
+}
+
+impl From<&inst::ParameterValue> for Vec<u8>  {
+    fn from(parameter_value: &inst::ParameterValue) -> Self {
+        match parameter_value {
             inst::ParameterValue::INT32(val) => val.to_le_bytes().to_vec(),
             inst::ParameterValue::FLOAT(val) => val.to_le_bytes().to_vec(),
         }
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -401,7 +508,7 @@ mod tests {
 
         let parsed_format = parse_format(message_buf).unwrap();
 
-        let re_emitted_bytes = parsed_format.to_bytes();
+        let re_emitted_bytes:Vec<u8> = parsed_format.into();
 
         println!("re_emitted_bytes: {:?}", String::from_utf8(re_emitted_bytes.clone()).unwrap());
 
