@@ -55,11 +55,7 @@ cargo run --example simple data/short_list.ulg
 
 The `examples/` directory contains several example programs that demonstrate how to use the ULOG parser.  These include:
 
-- **list_subscriptions.rs**: This program lists all subscriptions found in a ULOG file.
 - **simple.rs**: A minimal example demonstrating basic ULOG parsing functionality. (Shown above)
-- **ulog2csv.rs**: Converts ULOG data into CSV format.  Follows PlotJuggler conventions when naming columns.
-- **ulog2mysql.rs**: Imports ULOG data into a MySQL database. It inferrs the schema from the ULOG data and automatically creates the database table.
-- **ulog2sqlite.rs**: Similar to `ulog2mysql.rs`, but uses SQLite for storing ULOG data.
 - **ulogcat.rs**: Shows how to emit the parsed data back into a ULOG file.  This example round trips the data, parsing
  it and re-saving it to a new file.  Demonstrates the fidelity of the parser because the emitted ULOG file is typically binary identical to the input ULOG file.
 
