@@ -1,4 +1,4 @@
-# ulog_rs
+# yule_log
 A streaming [ULOG](https://docs.px4.io/main/en/dev_log/ulog_file_format.html) parser written in rust.
 
 This parser is designed to be fast and efficient, and to be able to handle large ULOG files without loading them into
