@@ -2996,35 +2996,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42ff0bf0c66b8238c6f3b578df37d0b7848e55df8577b3f74f92a69acceeb825"
 
 [[package]]
-name = "ulog_rs"
-version = "0.1.0"
-dependencies = [
- "async-channel",
- "aws-config",
- "aws-sdk-timestreamwrite",
- "byteorder",
- "chrono",
- "csv",
- "env_logger",
- "futures",
- "lazy_static",
- "log",
- "mysql",
- "r2d2",
- "r2d2_mysql",
- "rayon",
- "regex",
- "rusqlite",
- "serde",
- "serde_json",
- "serde_yaml",
- "tempfile",
- "thiserror",
- "tokio",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "unicode-ident"
 version = "1.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3356,6 +3327,35 @@ dependencies = [
  "quote",
  "syn 2.0.85",
  "synstructure",
+]
+
+[[package]]
+name = "yule_log"
+version = "0.1.0"
+dependencies = [
+ "async-channel",
+ "aws-config",
+ "aws-sdk-timestreamwrite",
+ "byteorder",
+ "chrono",
+ "csv",
+ "env_logger",
+ "futures",
+ "lazy_static",
+ "log",
+ "mysql",
+ "r2d2",
+ "r2d2_mysql",
+ "rayon",
+ "regex",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tracing-subscriber",
 ]
 
 [[package]]

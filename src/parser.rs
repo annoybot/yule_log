@@ -12,7 +12,6 @@ use crate::errors::ULogError::{InternalError, UndefinedFormat, UndefinedSubscrip
 use crate::formats::{parse_field, parse_format};
 use crate::message_buf::MessageBuf;
 use crate::model::{def, inst, msg};
-use crate::model::def::Format;
 use crate::model::MAGIC;
 use crate::model::msg::{Dropout, FileHeader, FlagBits, LoggedData, LogLevel, MultiInfo, UlogMessage};
 use crate::tokenizer::TokenList;
@@ -287,7 +286,7 @@ impl<R: Read> ULogParser<R> {
         // Force a lookup of the format and return an error if not found.
         let _format = self.get_format(&message_name)?;
 
-        let allowed = if let Some(allowed_subscription_names) = &self.allowed_subscription_names {
+        if let Some(allowed_subscription_names) = &self.allowed_subscription_names {
             allowed_subscription_names.contains(&message_name)
         } else {
             true

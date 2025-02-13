@@ -16,7 +16,7 @@ use crate::errors::ULogError;
 ///
 /// ```rust
 /// use byteorder::LittleEndian;
-/// use ulog_rs::message_buf::MessageBuf;
+/// use yule_log::message_buf::MessageBuf;
 ///
 /// // Create a buffer with mixed types:
 /// // - 0xDEADBEEF (u32)

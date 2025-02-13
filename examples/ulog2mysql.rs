@@ -16,9 +16,9 @@ use r2d2_mysql::{
 };
 use regex::Regex;
 
-use ulog_rs::errors::ULogError;
-use ulog_rs::model::{inst, msg};
-use ulog_rs::parser::ULogParser;
+use yule_log::errors::ULogError;
+use yule_log::model::{inst, msg};
+use yule_log::parser::ULogParser;
 
 lazy_static! {
         static ref ALLOWED_SUBSCRIPTION_NAMES: HashSet<String> = {

@@ -13,9 +13,9 @@ use log::LevelFilter;
 use regex::Regex;
 use rusqlite::Connection;
 
-use ulog_rs::errors::ULogError;
-use ulog_rs::model::{inst, msg};
-use ulog_rs::parser::ULogParser;
+use yule_log::errors::ULogError;
+use yule_log::model::{inst, msg};
+use yule_log::parser::ULogParser;
 
 // For using write! macro on String.
 

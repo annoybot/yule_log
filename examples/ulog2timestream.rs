@@ -19,9 +19,9 @@ use std::time::Duration;
 use std::{env, fs};
 use tokio::task;
 use tracing_subscriber;
-use ulog_rs::model::inst;
-use ulog_rs::model::msg::UlogMessage;
-use ulog_rs::parser::ULogParser;
+use yule_log::model::inst;
+use yule_log::model::msg::UlogMessage;
+use yule_log::parser::ULogParser;
 
 const DATABASE_NAME: &str = "dummy_database";
 const TABLE_NAME: &str = "ulog_rs_20240530T132652_new_12";

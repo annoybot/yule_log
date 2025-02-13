@@ -488,8 +488,6 @@ impl From<&inst::ParameterValue> for Vec<u8>  {
 
 #[cfg(test)]
 mod tests {
-    use log::LevelFilter;
-
     use crate::formats::parse_format;
     use crate::message_buf::MessageBuf;
     use crate::model::def;

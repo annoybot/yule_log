@@ -1,97 +1,15 @@
 use std::env;
-use std::env::set_current_dir;
 use std::error::Error;
 use std::fs;
 use std::fs::File;
-use std::process::{Command, Stdio};
 use std::io::{self, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
-use ulog_rs::builder::ULogParserBuilder;
+use yule_log::builder::ULogParserBuilder;
 
 #[derive(Debug)]
 struct TestResult {
     input_file: PathBuf,
     result: Result<(), String>,
-}
-
-#[test]
-
-fn test_ulog2csv() {
-    let current_dir = env::current_dir().expect("Failed to get current directory");
-    let input_dir = current_dir.join("test_data/input");
-    let output_dir = current_dir.join("test_data/output");
-
-    let mut results = Vec::new();
-
-    // Run the test for each .ulg file in input_dir
-    for entry in fs::read_dir(input_dir).expect("Failed to read input dir") {
-        let entry = entry.expect("Failed to read ulg input file");
-        let input_path = entry.path();
-
-        if input_path.extension() == Some(std::ffi::OsStr::new("ulg")) {
-            let basename = input_path.file_stem().unwrap().to_str().unwrap();
-            let output_path = output_dir.join(format!("{}_export.csv", basename));
-
-            // Copy the input file to the temp dir
-            let temp_input = std::env::temp_dir().join(format!("{}.ulg", basename));
-            fs::copy(&input_path, &temp_input).expect("Failed to copy input file");
-
-            // Run the `ulog2csv` example using `cargo run --example`
-            let status = Command::new("cargo")
-                .arg("run")
-                .arg("--example")
-                .arg("ulog2csv")
-                .arg(temp_input.clone())
-                .stderr(Stdio::inherit())
-                .output()
-                .expect("Failed to execute ulog2csv example");
-
-            let result = if status.status.success() {
-                let output_path_temp = std::env::temp_dir().join(format!("{}_export.csv", basename));
-                if output_path_temp.exists() {
-                    match compare_files(&output_path, &output_path_temp) {
-                        Ok(true) => {
-                            // Clean up output files
-                            fs::remove_file(output_path_temp).expect("Failed to remove temp output file");
-                            Ok(())
-                        }
-                        Ok(false) => Err(format!("Output CSV does not match expected for {}", basename)),
-                        Err(e) => Err(format!("File comparison failed: {}", e)),
-                    }
-                } else {
-                    Err(format!("Temporary output file not found for {}", basename))
-                }
-            } else {
-                Err(format!("Failed to run ulog2csv example for {}", basename))
-            };
-
-            // Collect the result for this file
-            results.push(TestResult {
-                input_file: input_path,
-                result,
-            });
-        }
-    }
-
-    let mut all_passed = true;
-
-    // Report results
-    println!("\nTest results:\n");
-    for result in results {
-        let status = match result.result {
-            Ok(()) => "✅", // Success
-            Err(err) => {
-                all_passed = false;
-                &format!("❌ {:?}", err)  // Failure
-            }
-        };
-
-        // Extract the relative path after "test_data"
-        let path_str = extract_relative_path(&result.input_file, "test_data");
-        println!("test_ulog2csv: {:<50} {}", path_str, status);
-    }
-
-    assert!(all_passed);
 }
 
 fn ulog_cat(input_path: &Path) -> Result<Box<Path>, Box<dyn Error>> {

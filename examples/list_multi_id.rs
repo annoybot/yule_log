@@ -4,8 +4,8 @@ use std::error::Error;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
-use ulog_rs::builder::ULogParserBuilder;
-use ulog_rs::model::msg::UlogMessage;
+use yule_log::builder::ULogParserBuilder;
+use yule_log::model::msg::UlogMessage;
 
 fn main()  -> Result<(), Box<dyn Error>>  {
     let mut multi_id_subscription_names:BTreeSet<String> = BTreeSet::new();

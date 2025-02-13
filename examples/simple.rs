@@ -3,8 +3,8 @@ use std::error::Error;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
-use ulog_rs::builder::ULogParserBuilder;
-use ulog_rs::model::msg::UlogMessage;
+use yule_log::builder::ULogParserBuilder;
+use yule_log::model::msg::UlogMessage;
 
 fn process_file(ulog_path: Box<Path>) -> Result<(), Box<dyn Error>> {
     let reader = BufReader::new(File::open(ulog_path.clone())?);

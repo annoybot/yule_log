@@ -10,8 +10,8 @@ use log::LevelFilter;
 use serde::ser::{Serialize, Serializer, SerializeSeq, SerializeStruct};
 use serde_yaml;
 
-use ulog_rs::model::{def, inst, msg};
-use ulog_rs::parser::ULogParser;
+use yule_log::model::{def, inst, msg};
+use yule_log::parser::ULogParser;
 
 fn main() -> Result<(), Box<dyn Error>> {
     // Initialize logging

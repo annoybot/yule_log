@@ -7,7 +7,7 @@ use std::path::Path;
 use env_logger::Builder;
 use log::LevelFilter;
 
-use ulog_rs::builder::ULogParserBuilder;
+use yule_log::builder::ULogParserBuilder;
 
 fn main() -> Result<(), Box<dyn Error>> {
     // Initialize logging

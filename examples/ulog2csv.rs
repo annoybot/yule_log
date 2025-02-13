@@ -8,9 +8,9 @@ use std::path::Path;
 use env_logger::Builder;
 use log::LevelFilter;
 
-use ulog_rs::csv::{Column, ColumnMap, CsvExporter, Point};
-use ulog_rs::model::{inst, msg};
-use ulog_rs::parser::ULogParser;
+use yule_log::csv::{Column, ColumnMap, CsvExporter, Point};
+use yule_log::model::{inst, msg};
+use yule_log::parser::ULogParser;
 
 fn main() -> Result<(), Box<dyn Error>> {
     // Initialize logging
