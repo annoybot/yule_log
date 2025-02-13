@@ -56,6 +56,7 @@ fn process_file(ulog_path: Box<Path>) -> Result<(), Box<dyn Error>> {
         let bytes:Vec<u8> = ulog_message.into();
 
         // Write the bytes to the output file in ULOG format.
+        // The output should be identical to the input file.
         output_file.write_all(&bytes)?;
     }
 

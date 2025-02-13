@@ -50,15 +50,3 @@ pub enum ULogError {
     #[error("Invalid MultiInfo message. {0}")]
     InvalingMultiInfo(String),
 }
-
-impl From<rusqlite::Error> for ULogError {
-    fn from(err: rusqlite::Error) -> Self {
-        ULogError::DatabaseError(err.to_string())
-    }
-}
-
-impl From<mysql::Error> for ULogError {
-    fn from(err: mysql::Error) -> Self {
-        ULogError::DatabaseError(err.to_string())
-    }
-}

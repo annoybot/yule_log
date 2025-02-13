@@ -130,7 +130,7 @@ impl From<&msg::Subscription> for Vec<u8> {
 
 impl From<LoggedData> for Vec<u8> {
     fn from(logged_data: LoggedData) -> Self {
-        logged_data.into()
+        (&logged_data).into()
     }
 }
 

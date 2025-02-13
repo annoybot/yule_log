@@ -57,7 +57,7 @@ impl<R: Read> Iterator for ULogParser<R> {
 impl<R: Read> ULogParser<R> {
     pub fn new(reader: R,) -> Result<ULogParser<R>, ULogError> {
         Ok(ULogParser {
-            state: State::HEADER.into(),
+            state: State::HEADER,
             file_header: None,
             overridden_params: HashSet::new(),
             formats: HashMap::new(),
@@ -218,7 +218,7 @@ impl<R: Read> ULogParser<R> {
                     };
 
                     if allowed {
-                        let logged_data = self.parse_data_message(sub.clone(), message_buf)?;
+                        let logged_data = self.parse_data_message(&sub, message_buf)?;
 
                         return Ok( msg::UlogMessage::LoggedData(logged_data.clone()));
                     } else {
@@ -316,7 +316,7 @@ impl<R: Read> ULogParser<R> {
 
 
 
-    fn parse_data_message(&self, sub: msg::Subscription, mut message_buf: MessageBuf) -> Result<msg::LoggedData, ULogError> {
+    fn parse_data_message(&self, sub: &msg::Subscription, mut message_buf: MessageBuf) -> Result<msg::LoggedData, ULogError> {
         let format = self.get_format(&sub.message_name)?;
         let message_len = message_buf.len();
 
