@@ -65,5 +65,5 @@ The `examples/` directory contains several example programs that demonstrate how
 
 ## License
 
-This project is licensed under an 'All Rights Reserved' licence. You may not redistribute or use the software without permission.
+This project is licensed under the [MIT Licence](LICENCE).
 
