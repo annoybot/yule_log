@@ -163,8 +163,6 @@ pub mod msg {
     pub struct LoggedData {
         pub timestamp: u64,
         pub msg_id: u16,
-        pub byte_count: usize,
-        //pub sub: Subscription,
         pub data: inst::Format,
     }
 

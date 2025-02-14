@@ -342,7 +342,6 @@ impl<R: Read> ULogParser<R> {
         Ok( msg::LoggedData {
                 timestamp,
                 msg_id: sub.msg_id,
-                byte_count: message_len,
                 data: data_format,
             })
     }
