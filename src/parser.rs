@@ -323,10 +323,7 @@ impl<R: Read> ULogParser<R> {
         if !format.fields.iter().any(|f| f.name == "timestamp") {
             return Err(ULogError::MissingTimestamp);
         }
-        // Read the timestamp from the logged data message.
-        // This seemed to assume that the assert above is correct, and that the timestamp field will be the first field in sub.format.
-        //let time_val = message_buf.take_u64()?;
-
+        
         let mut data_format = self.parse_data_message_sub(&format, &mut message_buf)?;
 
         if self.message_name_with_multi_id.contains(&sub.message_name) {
@@ -337,10 +334,7 @@ impl<R: Read> ULogParser<R> {
         // returned by `parse_data_message_sub()`.  We now remove the field from `data_format` to avoid returning redundant timestamps.
         // See the comment in `parse_data_message_sub()` for more information.
         let timestamp = data_format.timestamp.ok_or(ULogError::MissingTimestamp)?;
-
-        // FXIME: ⚠️We must not filter out the timestamps if we want to round trip the data.
-        //data_format.fields.retain(|f| f.name != "timestamp");
-
+        
         if !message_buf.is_empty() {
             log::warn!("Leftover bytes in messagebuf after parsing LOGGED_DATA message! Possible data corruption.");
         }
