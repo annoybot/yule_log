@@ -53,11 +53,18 @@ cargo run --example simple data/short_list.ulg
 
 ## Example Programs
 
-The `examples/` directory contains several example programs that demonstrate how to use the ULOG parser.  These include:
+### The `examples/` directory contains several example programs that demonstrate how to use the ULOG parser.  These include:
 
 - **simple.rs**: A minimal example demonstrating basic ULOG parsing functionality. (Shown above)
 - **ulogcat.rs**: Shows how to emit the parsed data back into a ULOG file.  This example round trips the data, parsing
  it and re-saving it to a new file.  Demonstrates the fidelity of the parser because the emitted ULOG file is typically binary identical to the input ULOG file.
+
+### Other sample code
+
+These standalone samples are hosted in separate repositories.  Click on the sample name for more info. 
+
+- **[ulog2csv](https://github.com/annoybot/ulog2csv)**: A cmdline utility which converts a ULOG file into a CSV file.  Follows PlotJuggler conventions when naming columns.
+- **[ulog2sqlite](https://github.com/annoybot/ulog2sqlite)**: A cmdline utility which converts a ULOG file to a SQLite database.
 
 ## License
 
