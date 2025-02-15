@@ -53,7 +53,7 @@ cargo run --example simple data/short_list.ulg
 
 ## Example Programs
 
-### The `examples/` directory contains several example programs that demonstrate how to use the ULOG parser.  These include:
+The `examples/` directory contains several example programs that demonstrate how to use the ULOG parser.  These include:
 
 - **simple.rs**: A minimal example demonstrating basic ULOG parsing functionality. (Shown above)
 - **ulogcat.rs**: Shows how to emit the parsed data back into a ULOG file.  This example round trips the data, parsing
