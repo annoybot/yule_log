@@ -48,5 +48,8 @@ pub enum ULogError {
     MissingTimestamp,
 
     #[error("Invalid MultiInfo message. {0}")]
-    InvalingMultiInfo(String),
+    InvalindMultiInfo(String),
+
+    #[error("Invalid Default Parameter Type")]
+    InvalidDefaultParameterType,
 }

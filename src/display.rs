@@ -3,7 +3,6 @@ use std::fmt::Formatter;
 use std::string::FromUtf8Error;
 
 use crate::model::{def, inst, msg};
-use crate::model::msg::DefaultType;
 
 impl fmt::Display for inst::FieldValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -49,11 +48,18 @@ impl fmt::Display for inst::ParameterValue {
 
 impl fmt::Display for msg::DefaultParameter {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let default_type_str = match self.get_default_type() {
-            DefaultType::SystemWide => "SystemWide".to_string(),
-            DefaultType::Configuration => "Configuration".to_string(),
-            DefaultType::Both => "SystemWide/Configuration".to_string(),
-        };
+        let default_type =  self.get_default_type();
+        let mut default_type_str = String::with_capacity(25); 
+
+        if default_type.system_wide {
+            default_type_str.push_str("SystemWide");
+        }
+        if default_type.configuration {
+            if !default_type_str.is_empty() {
+                default_type_str.push('|');
+            }
+            default_type_str.push_str("Configuration");
+        }
 
         write!(
             f,

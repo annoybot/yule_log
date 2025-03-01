@@ -129,32 +129,21 @@ pub mod msg {
         pub r#type: def::TypeExpr,
         pub value: inst::ParameterValue
     }
-
+    
     #[derive(Debug)]
-    pub enum DefaultType {
-        SystemWide,
-        Configuration,
-        Both, // when both bits are set
+    pub struct DefaultType {
+        pub system_wide: bool,
+        pub configuration: bool,
     }
+    
+    const DEFAULT_TYPE_SYSTEM_WIDE: u8 = 0b01;
+    const DEFAULT_TYPE_CONFIGURATION: u8 = 0b10;
 
     impl DefaultParameter {
         pub fn get_default_type(&self) -> DefaultType {
-            match self.default_types {
-                0b01 => DefaultType::SystemWide,
-                0b10 => DefaultType::Configuration,
-                0b11 => DefaultType::Both,
-                _ => panic!("Invalid default types bitfield"), // You can handle this more gracefully if needed
-            }
-        }
-    }
-
-    impl DefaultType {
-        pub fn from_bits(bits: u8) -> Self {
-            match bits {
-                0b01 => DefaultType::SystemWide,
-                0b10 => DefaultType::Configuration,
-                0b11 => DefaultType::Both,
-                _ => panic!("Invalid default types bitfield"), // You can handle this more gracefully if needed
+            DefaultType {
+                system_wide: self.default_types & DEFAULT_TYPE_SYSTEM_WIDE != 0,
+                configuration: self.default_types & DEFAULT_TYPE_CONFIGURATION != 0,
             }
         }
     }
