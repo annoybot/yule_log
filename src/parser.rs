@@ -8,12 +8,12 @@ use byteorder::{ByteOrder, LittleEndian};
 
 use crate::datastream::DataStream;
 use crate::errors::ULogError;
-use crate::errors::ULogError::{InternalError, UndefinedFormat, UndefinedSubscription, UnknownParameterType};
+use crate::errors::ULogError::{UndefinedFormat, UndefinedSubscription};
 use crate::field_helpers::{parse_array, parse_data_field};
 use crate::formats::{parse_field, parse_format};
 use crate::message_buf::MessageBuf;
 use crate::model::{def, inst, msg};
-use crate::model::def::{BaseType, TypeExpr};
+use crate::model::def::BaseType;
 use crate::model::MAGIC;
 use crate::model::msg::{Dropout, FileHeader, FlagBits, LoggedData, LogLevel, MultiInfo, UlogMessage};
 use crate::tokenizer::TokenList;
@@ -320,7 +320,7 @@ impl<R: Read> ULogParser<R> {
 
     fn parse_data_message(&self, sub: &msg::Subscription, mut message_buf: MessageBuf) -> Result<msg::LoggedData, ULogError> {
         let format = self.get_format(&sub.message_name)?;
-        let message_len = message_buf.len();
+        let _message_len = message_buf.len();
 
         if !format.fields.iter().any(|f| f.name == "timestamp") {
             return Err(ULogError::MissingTimestamp);

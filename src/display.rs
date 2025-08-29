@@ -1,10 +1,8 @@
 use std::fmt;
 use std::fmt::Formatter;
-use std::string::FromUtf8Error;
 
 use crate::model::{def, inst, msg};
 use crate::model::inst::FieldValue;
-use crate::model::msg::DefaultType;
 
 impl std::fmt::Display for inst::FieldValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

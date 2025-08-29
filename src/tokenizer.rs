@@ -28,6 +28,7 @@ impl<'a> TokenList<'a> {
         self.0.is_empty()
     }
 
+    #[allow(dead_code)]
     pub fn remaining(&self) -> usize {
         self.0.len()
     }

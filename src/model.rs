@@ -1,4 +1,3 @@
-use crate::model::def::BaseType;
 
 pub(crate) const MAGIC: [u8; 7] = [b'U', b'L', b'o', b'g', 0x01, 0x12, 0x35];
 
