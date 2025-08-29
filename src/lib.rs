@@ -10,3 +10,4 @@ pub mod errors;
 mod display;
 mod writer;
 pub mod builder;
+mod roundtrip_test;

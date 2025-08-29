@@ -4,7 +4,7 @@ use std::fs;
 use std::fs::File;
 use std::io::{self, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
-use yule_log::builder::ULogParserBuilder;
+use crate::builder::ULogParserBuilder;
 
 #[derive(Debug)]
 struct TestResult {
@@ -25,10 +25,10 @@ fn ulog_cat(input_path: &Path) -> Result<Box<Path>, Box<dyn Error>> {
         .file_stem().expect("Failed to get basename")
         .to_str().expect("Failed to convert basename to string");
     let output_filename = basename.to_owned() + "_export";
-    
+
     // Create the output file path in the temp dir.
     let output_path = Path::new(&env::temp_dir()).join(output_filename).with_extension("ulg");
-       
+
     // Open the output file for writing.
     let mut output_file = File::create(output_path.clone())?;
 
@@ -46,7 +46,7 @@ fn ulog_cat(input_path: &Path) -> Result<Box<Path>, Box<dyn Error>> {
 
 
 #[test]
-fn test_ulogcat() {
+fn test_roundtrip() {
     let current_dir = env::current_dir().expect("Failed to get current directory");
     let input_dir = current_dir.join("test_data/input");
     let mut results = Vec::new();
@@ -72,16 +72,16 @@ fn test_ulogcat() {
             } else {
                 Err(format!("Emitted file not found for {:?}", output_path))
             };
-        
-            // Collect the result for this file
-            results.push(TestResult {
-                input_file: input_path,
-                result,
-            });
-        }
+
+        // Collect the result for this file
+        results.push(TestResult {
+            input_file: input_path,
+            result,
+        });
+    }
 
     let mut all_passed = true;
-    
+
     // Report results
     println!("\nTest results:\n");
     for result in results {
@@ -95,7 +95,7 @@ fn test_ulogcat() {
         let path_str = extract_relative_path(&result.input_file, "test_data");
         println!("test_ulogcat: {:<50} {}", path_str, status);
     }
-    
+
     assert!(all_passed);
 }
 
