@@ -1,22 +1,27 @@
 use lazy_static::lazy_static;
 use regex::Regex;
+use std::collections::VecDeque;
 
 use crate::errors::ULogError;
 
 lazy_static! {
-    static ref TOKEN_REGEXP: Regex = Regex::new(r"(?P<identifier>[a-zA-Z_][a-zA-Z0-9_]*)|(?P<number>[0-9]+)|(?P<colon>:)|(?P<semicolon>;)|(?P<lbrace>\[)|(?P<rbrace>\])|(?P<whitespace>\s+)|(?P<unknown>.)").unwrap();
+    static ref TOKEN_REGEXP: Regex = Regex::new(
+        r"(?P<identifier>[a-zA-Z_][a-zA-Z0-9_]*)|(?P<number>[0-9]+)|(?P<colon>:)|(?P<semicolon>;)|(?P<lbrace>\[)|(?P<rbrace>\])|(?P<whitespace>\s+)|(?P<unknown>.)"
+    )
+    .unwrap();
 }
-#[derive(Debug)]
-pub struct TokenList(Vec<Token>);
 
-impl TokenList {
+#[derive(Debug)]
+pub struct TokenList<'a>(VecDeque<Token<'a>>);
+
+impl<'a> TokenList<'a> {
     #[allow(dead_code)]
-    pub fn new(tokens: Vec<Token>) -> Self {
+    pub fn new(tokens: VecDeque<Token<'a>>) -> Self {
         TokenList(tokens)
     }
 
-    pub(crate) fn from_str(str: &str) -> Self {
-        TokenList(tokenize(str))
+    pub(crate) fn from_str(s: &'a str) -> Self {
+        TokenList(tokenize(s))
     }
 
     pub fn is_empty(&self) -> bool {
@@ -24,73 +29,63 @@ impl TokenList {
     }
 
     pub fn remaining(&self) -> usize {
-        self.0.len() // Access the inner Vec using index
+        self.0.len()
     }
 
-    pub fn peek(&self) -> Option<&Token> {
-        self.0.first() // Always peek at the first token
+    pub fn peek(&self) -> Option<&Token<'a>> {
+        self.0.front()
     }
 
-    pub fn consume_one(&mut self) -> Result<Token, ULogError> {
-        if self.remaining() < 1 {
-            return Err(ULogError::UnexpectedEndOfFile);
-        }
-        let token = self.0.remove(0); // Remove and return the first token
-        Ok(token)
+    pub fn consume_one(&mut self) -> Result<Token<'a>, ULogError> {
+        self.0.pop_front().ok_or(ULogError::UnexpectedEndOfFile)
     }
 
-    pub fn consume_two(&mut self) -> Result<(Token, Token), ULogError> {
-        if self.remaining() < 2 {
-            return Err(ULogError::UnexpectedEndOfFile);
-        }
-        let token1 = self.0.remove(0); // Remove and return the first token
-        let token2 = self.0.remove(0); // Remove and return the next token
-        Ok((token1, token2))
+    pub fn consume_two(&mut self) -> Result<(Token<'a>, Token<'a>), ULogError> {
+        Ok((
+            self.0.pop_front().ok_or(ULogError::UnexpectedEndOfFile)?,
+            self.0.pop_front().ok_or(ULogError::UnexpectedEndOfFile)?,
+        ))
     }
 
-    pub fn consume_three(&mut self) -> Result<(Token, Token, Token), ULogError> {
-        if self.remaining() < 3 {
-            return Err(ULogError::UnexpectedEndOfFile);
-        }
-        let token1 = self.0.remove(0); // Remove and return the first token
-        let token2 = self.0.remove(0); // Remove and return the second token
-        let token3 = self.0.remove(0); // Remove and return the third token
-        Ok((token1, token2, token3))
+    pub fn consume_three(&mut self) -> Result<(Token<'a>, Token<'a>, Token<'a>), ULogError> {
+        Ok((
+            self.0.pop_front().ok_or(ULogError::UnexpectedEndOfFile)?,
+            self.0.pop_front().ok_or(ULogError::UnexpectedEndOfFile)?,
+            self.0.pop_front().ok_or(ULogError::UnexpectedEndOfFile)?,
+        ))
     }
 }
 
-
 #[derive(Debug, PartialEq, Eq)]
-pub enum Token {
-    Identifier(String),
+pub enum Token<'a> {
+    Identifier(&'a str),
     Number(usize),
     Colon,
     Semicolon,
     LBrace,
     RBrace,
     Unknown(char),
-    // We deliberately do not define a whitespace variant so that
-    // whitespace will be matched, but skipped by the tokenizer.
+    // Whitespace is skipped by the tokenizer, not represented as a token.
 }
 
-pub fn tokenize(input: &str) -> Vec<Token> {
-    let mut tokens = Vec::new();
+pub fn tokenize(input: &str) -> VecDeque<Token> {
+    let mut tokens = VecDeque::new();
 
     for caps in TOKEN_REGEXP.captures_iter(input) {
         if let Some(identifier) = caps.name("identifier") {
-            tokens.push(Token::Identifier(identifier.as_str().to_string()));
+            tokens.push_back(Token::Identifier(identifier.as_str()));
         } else if let Some(number) = caps.name("number") {
-            tokens.push(Token::Number(number.as_str().parse::<usize>().unwrap()));
+            tokens.push_back(Token::Number(number.as_str().parse::<usize>().unwrap()));
         } else if caps.name("colon").is_some() {
-            tokens.push(Token::Colon);
+            tokens.push_back(Token::Colon);
         } else if caps.name("semicolon").is_some() {
-            tokens.push(Token::Semicolon);
+            tokens.push_back(Token::Semicolon);
         } else if caps.name("lbrace").is_some() {
-            tokens.push(Token::LBrace);
+            tokens.push_back(Token::LBrace);
         } else if caps.name("rbrace").is_some() {
-            tokens.push(Token::RBrace);
+            tokens.push_back(Token::RBrace);
         } else if let Some(unknown) = caps.name("unknown") {
-            tokens.push(Token::Unknown(unknown.as_str().parse::<char>().unwrap()));
+            tokens.push_back(Token::Unknown(unknown.as_str().chars().next().unwrap()));
         }
     }
 
@@ -100,23 +95,25 @@ pub fn tokenize(input: &str) -> Vec<Token> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::VecDeque;
 
     #[test]
     fn test_tokenize() {
         let input = "message1: int field0; float[5] field1;";
-        let expected_tokens = vec![
-            Token::Identifier("message1".to_string()),
+        let expected_tokens: VecDeque<Token> = [
+            Token::Identifier("message1"),
             Token::Colon,
-            Token::Identifier("int".to_string()),
-            Token::Identifier("field0".to_string()),
+            Token::Identifier("int"),
+            Token::Identifier("field0"),
             Token::Semicolon,
-            Token::Identifier("float".to_string()),
+            Token::Identifier("float"),
             Token::LBrace,
             Token::Number(5),
             Token::RBrace,
-            Token::Identifier("field1".to_string()),
+            Token::Identifier("field1"),
             Token::Semicolon,
-        ];
+        ]
+            .into();
 
         let tokens = tokenize(input);
         assert_eq!(expected_tokens, tokens);
@@ -125,18 +122,17 @@ mod tests {
     #[test]
     fn test_tokenize_unknown() {
         let input = "message1: ? int field0;";
-        let expected_tokens = vec![
-            Token::Identifier("message1".to_string()),
+        let expected_tokens: VecDeque<Token> = [
+            Token::Identifier("message1"),
             Token::Colon,
             Token::Unknown('?'),
-            Token::Identifier("int".to_string()),
-            Token::Identifier("field0".to_string()),
+            Token::Identifier("int"),
+            Token::Identifier("field0"),
             Token::Semicolon,
-        ];
+        ]
+            .into();
 
         let tokens = tokenize(input);
         assert_eq!(expected_tokens, tokens);
     }
 }
-
-

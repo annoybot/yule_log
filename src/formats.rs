@@ -34,7 +34,7 @@ pub(crate) fn parse_format(message_buf: MessageBuf) -> Result<def::Format, ULogE
     }
 
     Ok(def::Format {
-        name,
+        name: name.to_string(),
         fields,
         padding: 0,
     })
@@ -45,7 +45,7 @@ pub(crate) fn parse_field(token_list: &mut TokenList) -> Result<def::Field, ULog
     log::trace!("token_list: {:?}", token_list);
 
     let base_type = match token_list.consume_one()? {
-        Token::Identifier(type_name) => { def::BaseType::from_string(type_name.as_str()) }
+        Token::Identifier(type_name) => { def::BaseType::from_string(type_name) }
 
         token => { Err(ULogError::ParseError(format!(
             "Invalid field definition. Expected an Identifier, got: {token:?}"
@@ -71,7 +71,7 @@ pub(crate) fn parse_field(token_list: &mut TokenList) -> Result<def::Field, ULog
     };
 
     Ok(def::Field {
-        name: field_name,
+        name: field_name.to_string(),
         r#type: def::TypeExpr {
             base_type,
             array_size,
