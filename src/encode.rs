@@ -1,18 +1,12 @@
 use std::io::{self, Write};
 
 use crate::model::{def, inst, msg};
-use crate::model::def::Format;
 use crate::model::msg::{LoggedData, UlogMessage};
 use crate::parser::ULogMessageType;
 
 // Define Encode trait
 pub trait Encode {
     fn encode<W: Write>(&self, writer: &mut W) -> io::Result<()>;
-}
-
-// Helper for writing little-endian bytes conveniently
-fn write_le_bytes<W: Write, T: AsRef<[u8]>>(writer: &mut W, bytes: T) -> io::Result<()> {
-    writer.write_all(bytes.as_ref())
 }
 
 // ------------------------ UlogMessage ------------------------

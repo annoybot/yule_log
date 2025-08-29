@@ -757,9 +757,30 @@ impl From<ULogMessageType> for u8 {
 #[cfg(test)]
 mod tests {
     use std::io;
-
+    use crate::encode::Encode;
     use super::*;
+    
+    impl<R: std::io::Read> ULogParser<R> {
+        pub fn insert_format(&mut self, message_name: &str, format: def::Format) {
+            self.formats.insert(message_name.to_string(), format);
+        }
+    }
 
+    #[test]
+    fn test_round_trip_format() {
+        let input = b"my_format:uint64_t timestamp;custom_type custom_field;bool is_happy;custom_type2[4] custom_field;uint8_t[8] pet_ids;";
+        let message_buf = MessageBuf::from_vec(input.to_vec());
+
+        let parsed_format = parse_format(message_buf).unwrap();
+        
+        let mut emitted_bytes = Vec::new();
+        parsed_format.encode(&mut emitted_bytes).expect("Unable to encode format?!");
+
+        println!("re_emitted_bytes: {:?}", String::from_utf8(emitted_bytes.clone()).unwrap());
+
+        assert_eq!(emitted_bytes, input);
+    }
+    
     #[test]
     fn test_round_trip_subscription() {
         //  \x0A    \x01\x00  my_message
@@ -783,7 +804,9 @@ mod tests {
         let parsed_subscription = parser.parse_subscription(message_buf).expect("Unable to parse subscription");
         println!("parsed_subscription: {:?}", parsed_subscription);
 
-        let emitted_bytes:Vec<u8> = parsed_subscription.into();
+        let mut emitted_bytes = Vec::new();
+        parsed_subscription.encode(&mut emitted_bytes).expect("Unable to encode subscription?!");
+
         println!("Emitted bytes: {:?}", emitted_bytes);
 
         assert_eq!(emitted_bytes, input_bytes);
