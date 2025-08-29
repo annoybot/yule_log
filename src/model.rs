@@ -1,3 +1,5 @@
+use crate::model::def::BaseType;
+
 pub(crate) const MAGIC: [u8; 7] = [b'U', b'L', b'o', b'g', 0x01, 0x12, 0x35];
 
 pub mod msg {
@@ -249,96 +251,87 @@ pub mod inst {
         pub value: FieldValue,
     }
 
-    #[derive(Debug, Clone, PartialEq)]
-    pub enum FieldValue {
-        SCALAR(BaseType),
-        ARRAY(Vec<BaseType>),
-    }
 
     #[derive(Debug, Clone)]
     pub enum ParameterValue { INT32(i32), FLOAT(f32) }
 
+
     #[derive(Debug, Clone, PartialEq)]
-    pub enum BaseType {
-        UINT8(u8),
-        UINT16(u16),
-        UINT32(u32),
-        UINT64(u64),
-        INT8(i8),
-        INT16(i16),
-        INT32(i32),
-        INT64(i64),
-        FLOAT(f32),
-        DOUBLE(f64),
-        BOOL(bool),
-        CHAR(char),
-        OTHER(Format),
+    pub enum FieldValue {
+        // Typed scalars
+        ScalarU8(u8),
+        ScalarU16(u16),
+        ScalarU32(u32),
+        ScalarU64(u64),
+        ScalarI8(i8),
+        ScalarI16(i16),
+        ScalarI32(i32),
+        ScalarI64(i64),
+        ScalarF32(f32),
+        ScalarF64(f64),
+        ScalarBool(bool),
+        ScalarChar(char),
+        ScalarOther(Format),
+
+        // Typed arrays
+        ArrayU8(Vec<u8>),
+        ArrayU16(Vec<u16>),
+        ArrayU32(Vec<u32>),
+        ArrayU64(Vec<u64>),
+        ArrayI8(Vec<i8>),
+        ArrayI16(Vec<i16>),
+        ArrayI32(Vec<i32>),
+        ArrayI64(Vec<i64>),
+        ArrayF32(Vec<f32>),
+        ArrayF64(Vec<f64>),
+        ArrayBool(Vec<bool>),
+        ArrayChar(Vec<char>),
+        ArrayOther(Vec<Format>),
     }
+
 }
 
 impl inst::Format {
-    pub fn flatten(&self) -> Vec<(String, inst::BaseType)> {
+    pub fn flatten(&self) -> Vec<(String, inst::FieldValue)> {
         let prefix:String = self.to_string();
 
         self.flatten_sub(&prefix)
     }
 
-    fn flatten_sub(&self, path: &str) -> Vec<(String, inst::BaseType)> {
+    fn flatten_sub(&self, path: &str) -> Vec<(String, inst::FieldValue)> {
         let mut flattened = Vec::new();
 
         for field in &self.fields {
             let current_path = format!("{}/{}", path, field.name);
 
             match &field.value {
-                inst::FieldValue::SCALAR(data_type) => {
-                    flattened.extend(self.flatten_data_type(current_path.clone(), data_type));
+                inst::FieldValue::ScalarOther(nested_format) => {
+                    // recursively flatten nested structures
+                    flattened.extend(nested_format.flatten_sub(&current_path));
                 }
-                inst::FieldValue::ARRAY(array) => {
-                    for (index, data_type) in array.iter().enumerate() {
-                        let array_path = format!("{current_path}.{index:02}");
-                        flattened.extend(self.flatten_data_type(array_path, data_type));
+                inst::FieldValue::ArrayOther(array_of_formats) => {
+                    for (i, fmt) in array_of_formats.iter().enumerate() {
+                        let array_path = format!("{current_path}.{i:02}");
+                        flattened.extend(fmt.flatten_sub(&array_path));
                     }
+                }
+                scalar_or_array => {
+                    // everything else (typed scalar or typed array)
+                    flattened.push((current_path, scalar_or_array.clone()));
                 }
             }
         }
 
         flattened
     }
-
-    // Helper method to flatten a inst::DataType, handling recursion if the type is OTHER
-    #[allow(clippy::unused_self)]
-    fn flatten_data_type(&self, path: String, data_type: &inst::BaseType) -> Vec<(String, inst::BaseType)> {
-        match data_type {
-            inst::BaseType::OTHER(nested_format) => {
-                // Recursively flatten nested DataFormat
-                nested_format.flatten_sub(&path)
-            }
-            _ => {
-                // For any other scalar data type, just append the path and the data type
-                vec![(path, data_type.clone())]
-            }
-        }
-    }
 }
 
-impl From<inst::BaseType> for def::BaseType {
-    fn from(base: inst::BaseType) -> Self {
-        match base {
-            inst::BaseType::UINT8(_) => def::BaseType::UINT8,
-            inst::BaseType::UINT16(_) => def::BaseType::UINT16,
-            inst::BaseType::UINT32(_) => def::BaseType::UINT32,
-            inst::BaseType::UINT64(_) => def::BaseType::UINT64,
-            inst::BaseType::INT8(_) => def::BaseType::INT8,
-            inst::BaseType::INT16(_) => def::BaseType::INT16,
-            inst::BaseType::INT32(_) => def::BaseType::INT32,
-            inst::BaseType::INT64(_) => def::BaseType::INT64,
-            inst::BaseType::FLOAT(_) => def::BaseType::FLOAT,
-            inst::BaseType::DOUBLE(_) => def::BaseType::DOUBLE,
-            inst::BaseType::BOOL(_) => def::BaseType::BOOL,
-            inst::BaseType::CHAR(_) => def::BaseType::CHAR,
-            inst::BaseType::OTHER(format) => def::BaseType::OTHER(format.name),
-        }
+impl def::TypeExpr {
+    pub fn is_scalar(&self) -> bool {
+        self.array_size.is_none()
+    }
+
+    pub fn is_array(&self) -> bool {
+        self.array_size.is_some()
     }
 }
-
-
