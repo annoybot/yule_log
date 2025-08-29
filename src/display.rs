@@ -3,33 +3,59 @@ use std::fmt::Formatter;
 use std::string::FromUtf8Error;
 
 use crate::model::{def, inst, msg};
+use crate::model::inst::FieldValue;
+use crate::model::msg::DefaultType;
 
-impl fmt::Display for inst::FieldValue {
+impl std::fmt::Display for inst::FieldValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            inst::FieldValue::SCALAR(data_type) => {
-                // Delegate to the inst::DataType's display implementation.
-                write!(f, "{data_type}")
+            // Scalars
+            FieldValue::ScalarU8(v) => write!(f, "{v}"),
+            FieldValue::ScalarU16(v) => write!(f, "{v}"),
+            FieldValue::ScalarU32(v) => write!(f, "{v}"),
+            FieldValue::ScalarU64(v) => write!(f, "{v}"),
+            FieldValue::ScalarI8(v) => write!(f, "{v}"),
+            FieldValue::ScalarI16(v) => write!(f, "{v}"),
+            FieldValue::ScalarI32(v) => write!(f, "{v}"),
+            FieldValue::ScalarI64(v) => write!(f, "{v}"),
+            FieldValue::ScalarF32(v) => write!(f, "{v}"),
+            FieldValue::ScalarF64(v) => write!(f, "{v}"),
+            FieldValue::ScalarBool(v) => write!(f, "{v}"),
+            FieldValue::ScalarChar(c) => write!(f, "'{c}'"),
+            FieldValue::ScalarOther(fmt) => write!(f, "{{{}}}", fmt),
+
+            // Arrays
+            FieldValue::ArrayU8(arr) => Ok(fmt_array(arr, f)?),
+            FieldValue::ArrayU16(arr) => Ok(fmt_array(arr, f)?),
+            FieldValue::ArrayU32(arr) => Ok(fmt_array(arr, f)?),
+            FieldValue::ArrayU64(arr) => Ok(fmt_array(arr, f)?),
+            FieldValue::ArrayI8(arr) => Ok(fmt_array(arr, f)?),
+            FieldValue::ArrayI16(arr) => Ok(fmt_array(arr, f)?),
+            FieldValue::ArrayI32(arr) => Ok(fmt_array(arr, f)?),
+            FieldValue::ArrayI64(arr) => Ok(fmt_array(arr, f)?),
+            FieldValue::ArrayF32(arr) => Ok(fmt_array(arr, f)?),
+            FieldValue::ArrayF64(arr) => Ok(fmt_array(arr, f)?),
+            FieldValue::ArrayBool(arr) => Ok(fmt_array(arr, f)?),
+
+            FieldValue::ArrayChar(arr) => {
+                let s: String = arr.iter().collect();
+                write!(f, "\"{s}\"")
             }
-            inst::FieldValue::ARRAY(data_types) => {
-                if let Some(inst::BaseType::CHAR(_)) = data_types.first() {
-                    // If it's an array of CHAR, join the characters into a string
-                    let chars: String = data_types.iter()
-                        .map(|dt| match dt {
-                            inst::BaseType::CHAR(c) => *c,
-                            _ => unreachable!(), // Should never happen since we checked the type.
-                        })
-                        .collect();
-                    write!(f, "\"{chars}\"") // Wrap the string in quotes like a normal string.
-                } else {
-                    // For other types, format normally
-                    let formatted_elements: Vec<String> = data_types.iter().map(|dt| format!("{dt}")).collect();
-                    write!(f, "[{}]", formatted_elements.join(", "))
-                }
+
+            FieldValue::ArrayOther(arr) => {
+                let formatted: Vec<String> = arr.iter().map(|f| format!("{{{}}}", f)).collect();
+                write!(f, "[{}]", formatted.join(", "))
             }
         }
     }
 }
+
+// helper for formatting arrays
+fn fmt_array<T: fmt::Display>(arr: &[T], f: &mut Formatter<'_>) -> fmt::Result {
+    let s = arr.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(", ");
+    write!(f, "[{}]", s)
+}
+
 
 impl fmt::Display for msg::Parameter {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -49,7 +75,7 @@ impl fmt::Display for inst::ParameterValue {
 impl fmt::Display for msg::DefaultParameter {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let default_type =  self.get_default_type();
-        let mut default_type_str = String::with_capacity(25); 
+        let mut default_type_str = String::with_capacity(25);
 
         if default_type.system_wide {
             default_type_str.push_str("SystemWide");
@@ -60,6 +86,7 @@ impl fmt::Display for msg::DefaultParameter {
             }
             default_type_str.push_str("Configuration");
         }
+
 
         write!(
             f,
@@ -74,124 +101,112 @@ impl fmt::Display for msg::DefaultParameter {
 impl fmt::Display for msg::Info {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}: ", self.key)?;
-        
+
         match &self.value {
-            inst::FieldValue::SCALAR(value) => {
-                match value {
-                    inst::BaseType::CHAR(ch) => {
-                        write!(f, "{ch}")
-                    }
-                    inst::BaseType::UINT32(val) => {
-                        if self.key.starts_with("ver_") && self.key.ends_with("_release") {
-                            write!(f, "{val:#X}") // Special formatting for ver_*_release
-                        } else {
-                            write!(f, "{val}")
-                        }
-                    }
-                    inst::BaseType::UINT8(val) => write!(f, "{val}"),
-                    inst::BaseType::UINT16(val) => write!(f, "{val}"),
-                    inst::BaseType::UINT64(val) => write!(f, "{val}"),
-                    inst::BaseType::INT8(val) => write!(f, "{val}"),
-                    inst::BaseType::INT16(val) => write!(f, "{val}"),
-                    inst::BaseType::INT32(val) => write!(f, "{val}"),
-                    inst::BaseType::INT64(val) => write!(f, "{val}"),
-                    inst::BaseType::FLOAT(val) => write!(f, "{val}"),
-                    inst::BaseType::DOUBLE(val) => write!(f, "{val}"),
-                    inst::BaseType::BOOL(val) => write!(f, "{val}"),
-                    // ⚠️ Should not occur. Only basic types are allwed in an Info message.
-                    //    Implemented anyway just in case.
-                    inst::BaseType::OTHER(val) => write!(f, "{val}"),
+            // Scalars
+            FieldValue::ScalarU8(val) => write!(f, "{val}")?,
+            FieldValue::ScalarU16(val) => write!(f, "{val}")?,
+            FieldValue::ScalarU32(val) => {
+                if self.key.starts_with("ver_") && self.key.ends_with("_release") {
+                    write!(f, "{val:#X}")?
+                } else {
+                    write!(f, "{val}")?
                 }
             }
-            inst::FieldValue::ARRAY(array) => {
-                if array.is_empty() {
-                    write!(f, "[]")
-                } else { 
-                    let is_string = matches!(array.first().unwrap(), inst::BaseType::CHAR(_));
-                    
-                    if is_string {
-                        write!(f, "{}",
-                               String::from_utf8(array
-                                   .iter()
-                                   .map(|x| {
-                                       match x {
-                                           inst::BaseType::CHAR(ch) => *ch as u8,
-                                           _ => unreachable!()
-                                       }
-                                   })
-                                   .collect())
-                                   .map_err(|_err: FromUtf8Error| std::fmt::Error)?)
-                    } else {
-                        let formatted_elements: Vec<String> = array.iter().map(|e| format!("{e}")).collect();
-                        write!(f, "[{}]", formatted_elements.join(", "))
-                    }
-                    
-                } 
+            FieldValue::ScalarU64(val) => write!(f, "{val}")?,
+            FieldValue::ScalarI8(val) => write!(f, "{val}")?,
+            FieldValue::ScalarI16(val) => write!(f, "{val}")?,
+            FieldValue::ScalarI32(val) => write!(f, "{val}")?,
+            FieldValue::ScalarI64(val) => write!(f, "{val}")?,
+            FieldValue::ScalarF32(val) => write!(f, "{val}")?,
+            FieldValue::ScalarF64(val) => write!(f, "{val}")?,
+            FieldValue::ScalarBool(val) => write!(f, "{val}")?,
+            FieldValue::ScalarChar(ch) => write!(f, "{ch}")?,
+            FieldValue::ScalarOther(fmt) => write!(f, "{{{}}}", fmt)?,
+
+            // Arrays
+            FieldValue::ArrayU8(arr) => fmt_array(arr, f)?,
+            FieldValue::ArrayU16(arr) => fmt_array(arr, f)?,
+            FieldValue::ArrayU32(arr) => fmt_array(arr, f)?,
+            FieldValue::ArrayU64(arr) => fmt_array(arr, f)?,
+            FieldValue::ArrayI8(arr) => fmt_array(arr, f)?,
+            FieldValue::ArrayI16(arr) => fmt_array(arr, f)?,
+            FieldValue::ArrayI32(arr) => fmt_array(arr, f)?,
+            FieldValue::ArrayI64(arr) => fmt_array(arr, f)?,
+            FieldValue::ArrayF32(arr) => fmt_array(arr, f)?,
+            FieldValue::ArrayF64(arr) => fmt_array(arr, f)?,
+            FieldValue::ArrayBool(arr) => fmt_array(arr, f)?,
+
+            FieldValue::ArrayChar(arr) => {
+                let s: String = arr.iter().collect();
+                write!(f, "\"{s}\"")?
+            }
+
+            FieldValue::ArrayOther(arr) => {
+                let formatted: Vec<String> = arr.iter().map(|fmt| format!("{{{}}}", fmt)).collect();
+                write!(f, "[{}]", formatted.join(", "))?
             }
         }
+
+        Ok(())
     }
 }
+
 
 impl fmt::Display for msg::MultiInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}: ", self.key)?;
 
         match &self.value {
-            inst::FieldValue::SCALAR(value) => {
-                match value {
-                    inst::BaseType::CHAR(ch) => {
-                        write!(f, "{ch}")
-                    }
-                    inst::BaseType::UINT32(val) => {
-                        if self.key.starts_with("ver_") && self.key.ends_with("_release") {
-                            write!(f, "{val:#X}") // Special formatting for ver_*_release
-                        } else {
-                            write!(f, "{val}")
-                        }
-                    }
-                    inst::BaseType::UINT8(val) => write!(f, "{val}"),
-                    inst::BaseType::UINT16(val) => write!(f, "{val}"),
-                    inst::BaseType::UINT64(val) => write!(f, "{val}"),
-                    inst::BaseType::INT8(val) => write!(f, "{val}"),
-                    inst::BaseType::INT16(val) => write!(f, "{val}"),
-                    inst::BaseType::INT32(val) => write!(f, "{val}"),
-                    inst::BaseType::INT64(val) => write!(f, "{val}"),
-                    inst::BaseType::FLOAT(val) => write!(f, "{val}"),
-                    inst::BaseType::DOUBLE(val) => write!(f, "{val}"),
-                    inst::BaseType::BOOL(val) => write!(f, "{val}"),
-                    // ⚠️ Should not occur. Only basic types are allwed in an Info message.
-                    //    Implemented anyway just in case.
-                    inst::BaseType::OTHER(val) => write!(f, "{val}"),
+            // Scalars
+            FieldValue::ScalarU8(val) => write!(f, "{val}")?,
+            FieldValue::ScalarU16(val) => write!(f, "{val}")?,
+            FieldValue::ScalarU32(val) => {
+                if self.key.starts_with("ver_") && self.key.ends_with("_release") {
+                    write!(f, "{val:#X}")?
+                } else {
+                    write!(f, "{val}")?
                 }
             }
-            inst::FieldValue::ARRAY(array) => {
-                if array.is_empty() {
-                    write!(f, "[]")
-                } else {
-                    let is_string = matches!(array.first().unwrap(), inst::BaseType::CHAR(_));
+            FieldValue::ScalarU64(val) => write!(f, "{val}")?,
+            FieldValue::ScalarI8(val) => write!(f, "{val}")?,
+            FieldValue::ScalarI16(val) => write!(f, "{val}")?,
+            FieldValue::ScalarI32(val) => write!(f, "{val}")?,
+            FieldValue::ScalarI64(val) => write!(f, "{val}")?,
+            FieldValue::ScalarF32(val) => write!(f, "{val}")?,
+            FieldValue::ScalarF64(val) => write!(f, "{val}")?,
+            FieldValue::ScalarBool(val) => write!(f, "{val}")?,
+            FieldValue::ScalarChar(ch) => write!(f, "{ch}")?,
+            FieldValue::ScalarOther(fmt) => write!(f, "{{{}}}", fmt)?,
 
-                    if is_string {
-                        write!(f, "{}",
-                               String::from_utf8(array
-                                   .iter()
-                                   .map(|x| {
-                                       match x {
-                                           inst::BaseType::CHAR(ch) => *ch as u8,
-                                           _ => unreachable!()
-                                       }
-                                   })
-                                   .collect())
-                                   .map_err(|_err: FromUtf8Error| std::fmt::Error)?)
-                    } else {
-                        let formatted_elements: Vec<String> = array.iter().map(|e| format!("{e}")).collect();
-                        write!(f, "[{}]", formatted_elements.join(", "))
-                    }
+            // Arrays
+            FieldValue::ArrayU8(arr) => fmt_array(arr, f)?,
+            FieldValue::ArrayU16(arr) => fmt_array(arr, f)?,
+            FieldValue::ArrayU32(arr) => fmt_array(arr, f)?,
+            FieldValue::ArrayU64(arr) => fmt_array(arr, f)?,
+            FieldValue::ArrayI8(arr) => fmt_array(arr, f)?,
+            FieldValue::ArrayI16(arr) => fmt_array(arr, f)?,
+            FieldValue::ArrayI32(arr) => fmt_array(arr, f)?,
+            FieldValue::ArrayI64(arr) => fmt_array(arr, f)?,
+            FieldValue::ArrayF32(arr) => fmt_array(arr, f)?,
+            FieldValue::ArrayF64(arr) => fmt_array(arr, f)?,
+            FieldValue::ArrayBool(arr) => fmt_array(arr, f)?,
 
-                }
+            FieldValue::ArrayChar(arr) => {
+                let s: String = arr.iter().collect();
+                write!(f, "\"{s}\"")?
+            }
+
+            FieldValue::ArrayOther(arr) => {
+                let formatted: Vec<String> = arr.iter().map(|fmt| format!("{{{}}}", fmt)).collect();
+                write!(f, "[{}]", formatted.join(", "))?
             }
         }
+
+        Ok(())
     }
 }
+
 
 impl fmt::Display for msg::Subscription {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -261,25 +276,6 @@ impl fmt::Display for inst::Format {
     }
 }
 
-impl fmt::Display for inst::BaseType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            inst::BaseType::UINT8(v) => write!(f, "{v}"),
-            inst::BaseType::UINT16(v) => write!(f, "{v}"),
-            inst::BaseType::UINT32(v) => write!(f, "{v}"),
-            inst::BaseType::UINT64(v) => write!(f, "{v}"),
-            inst::BaseType::INT8(v) => write!(f, "{v}"),
-            inst::BaseType::INT16(v) => write!(f, "{v}"),
-            inst::BaseType::INT32(v) => write!(f, "{v}"),
-            inst::BaseType::INT64(v) => write!(f, "{v}"),
-            inst::BaseType::FLOAT(v) => write!(f, "{v}"),
-            inst::BaseType::DOUBLE(v) => write!(f, "{v}"),
-            inst::BaseType::BOOL(v) => write!(f, "{v}"),
-            inst::BaseType::CHAR(v) => write!(f, "{v}"), 
-            inst::BaseType::OTHER(v) => write!(f, "{v}"),
-        }
-    }
-}
 
 impl fmt::Display for msg::LoggedString {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

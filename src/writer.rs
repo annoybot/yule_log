@@ -430,46 +430,52 @@ impl From<inst::FieldValue> for Vec<u8> {
     }
 }
 
-impl From<&inst::FieldValue> for Vec<u8>  {
+impl From<&inst::FieldValue> for Vec<u8> {
     fn from(field_value: &inst::FieldValue) -> Self {
         match field_value {
-            inst::FieldValue::SCALAR(base_type) => Vec::from(base_type),
-            inst::FieldValue::ARRAY(arr) => {
-                let mut bytes = Vec::new();
-                for value in arr {
-                    bytes.extend(Vec::from(value));
-                }
-                bytes
+            // Scalars
+            inst::FieldValue::ScalarU8(v) => vec![*v],
+            inst::FieldValue::ScalarU16(v) => v.to_le_bytes().to_vec(),
+            inst::FieldValue::ScalarU32(v) => v.to_le_bytes().to_vec(),
+            inst::FieldValue::ScalarU64(v) => v.to_le_bytes().to_vec(),
+            inst::FieldValue::ScalarI8(v) => vec![*v as u8],
+            inst::FieldValue::ScalarI16(v) => v.to_le_bytes().to_vec(),
+            inst::FieldValue::ScalarI32(v) => v.to_le_bytes().to_vec(),
+            inst::FieldValue::ScalarI64(v) => v.to_le_bytes().to_vec(),
+            inst::FieldValue::ScalarF32(v) => v.to_le_bytes().to_vec(),
+            inst::FieldValue::ScalarF64(v) => v.to_le_bytes().to_vec(),
+            inst::FieldValue::ScalarBool(v) => vec![*v as u8],
+            inst::FieldValue::ScalarChar(c) => vec![*c as u8],
+            inst::FieldValue::ScalarOther(fmt) => {
+                // flatten nested format recursively
+                fmt.flatten()
+                    .into_iter()
+                    .flat_map(|(_, val)| Vec::from(&val))
+                    .collect()
             }
+
+            // Arrays
+            inst::FieldValue::ArrayU8(arr) => arr.clone(),
+            inst::FieldValue::ArrayU16(arr) => arr.iter().flat_map(|v| v.to_le_bytes()).collect(),
+            inst::FieldValue::ArrayU32(arr) => arr.iter().flat_map(|v| v.to_le_bytes()).collect(),
+            inst::FieldValue::ArrayU64(arr) => arr.iter().flat_map(|v| v.to_le_bytes()).collect(),
+            inst::FieldValue::ArrayI8(arr) => arr.iter().map(|v| *v as u8).collect(),
+            inst::FieldValue::ArrayI16(arr) => arr.iter().flat_map(|v| v.to_le_bytes()).collect(),
+            inst::FieldValue::ArrayI32(arr) => arr.iter().flat_map(|v| v.to_le_bytes()).collect(),
+            inst::FieldValue::ArrayI64(arr) => arr.iter().flat_map(|v| v.to_le_bytes()).collect(),
+            inst::FieldValue::ArrayF32(arr) => arr.iter().flat_map(|v| v.to_le_bytes()).collect(),
+            inst::FieldValue::ArrayF64(arr) => arr.iter().flat_map(|v| v.to_le_bytes()).collect(),
+            inst::FieldValue::ArrayBool(arr) => arr.iter().map(|v| *v as u8).collect(),
+            inst::FieldValue::ArrayChar(arr) => arr.iter().map(|c| *c as u8).collect(),
+            inst::FieldValue::ArrayOther(arr) => arr
+                .iter()
+                .flat_map(|fmt| fmt.flatten().into_iter().flat_map(|(_, val)| Vec::from(&val)))
+                .collect(),
         }
     }
 }
 
-impl From<inst::BaseType> for Vec<u8> {
-    fn from(base_type: inst::BaseType) -> Self {
-        (&base_type).into()
-    }
-}
 
-impl From<&inst::BaseType> for Vec<u8>  {
-    fn from(base_type: &inst::BaseType) -> Self {
-        match base_type {
-            inst::BaseType::UINT8(v) => v.to_le_bytes().to_vec(),
-            inst::BaseType::UINT16(v) => v.to_le_bytes().to_vec(),
-            inst::BaseType::UINT32(v) => v.to_le_bytes().to_vec(),
-            inst::BaseType::UINT64(v) => v.to_le_bytes().to_vec(),
-            inst::BaseType::INT8(v) => v.to_le_bytes().to_vec(),
-            inst::BaseType::INT16(v) => v.to_le_bytes().to_vec(),
-            inst::BaseType::INT32(v) => v.to_le_bytes().to_vec(),
-            inst::BaseType::INT64(v) => v.to_le_bytes().to_vec(),
-            inst::BaseType::FLOAT(v) => v.to_le_bytes().to_vec(),
-            inst::BaseType::DOUBLE(v) => v.to_le_bytes().to_vec(),
-            inst::BaseType::BOOL(v) => if *v { vec![ 1u8 ] } else { vec![0u8] },
-            inst::BaseType::CHAR(v) => vec![*v as u8],
-            inst::BaseType::OTHER(format) => format.into(),
-        }
-    }
-}
 
 impl From<inst::ParameterValue> for Vec<u8> {
     fn from(parameter_value: inst::ParameterValue) -> Self {

@@ -2,3 +2,4 @@
 data/large/
 .idea/
 Docs
+Cargo.lock

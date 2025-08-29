@@ -11,3 +11,4 @@ mod display;
 mod writer;
 pub mod builder;
 mod roundtrip_test;
+mod field_helpers;
