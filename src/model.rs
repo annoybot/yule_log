@@ -287,6 +287,7 @@ pub mod inst {
         ArrayChar(Vec<char>),
         ArrayOther(Vec<Format>),
     }
+}
 
 impl inst::FieldValue {
     pub fn to_scalars(&self) -> Option<Vec<inst::FieldValue>> {
