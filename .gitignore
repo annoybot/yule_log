@@ -3,3 +3,5 @@ data/large/
 .idea/
 Docs
 Cargo.lock
+outer.ulg
+square_flight.ulg
