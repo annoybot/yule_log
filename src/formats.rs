@@ -108,7 +108,7 @@ impl def::BaseType {
 #[cfg(test)]
 mod tests {
     use log::LevelFilter;
-
+    use crate::encode::Encode;
     use super::*;
 
     #[test]
@@ -160,8 +160,9 @@ mod tests {
         let message_buf = MessageBuf::from_vec(input.to_vec());
         
         let parsed_format = parse_format(message_buf).unwrap();
-        
-        let re_emitted_bytes:Vec<u8> = parsed_format.into();
+
+        let mut re_emitted_bytes = Vec::new();
+        parsed_format.encode(&mut re_emitted_bytes).unwrap();
         
         println!("re_emitted_bytes: {:?}", String::from_utf8(re_emitted_bytes.clone()).unwrap());
         

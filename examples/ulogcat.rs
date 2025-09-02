@@ -1,13 +1,14 @@
 use std::env;
 use std::error::Error;
 use std::fs::File;
-use std::io::{BufReader, Write};
+use std::io::{BufReader, BufWriter, Write};
 use std::path::Path;
 
 use env_logger::Builder;
 use log::LevelFilter;
 
 use yule_log::builder::ULogParserBuilder;
+use yule_log::encode::Encode;
 
 fn main() -> Result<(), Box<dyn Error>> {
     // Initialize logging
@@ -48,17 +49,14 @@ fn process_file(ulog_path: Box<Path>) -> Result<(), Box<dyn Error>> {
     let output_path = output_path.with_file_name(format!("{}_emitted.ulg", output_path.file_name().unwrap().to_string_lossy()));
 
     // Open the output file for writing.
-    let mut output_file = File::create(output_path)?;
+    let file = File::create(output_path)?;
+    let mut writer = BufWriter::new(file);
 
     for result in parser {
         let ulog_message = result?;
-
-        let bytes:Vec<u8> = ulog_message.into();
-
-        // Write the bytes to the output file in ULOG format.
-        // The output should be identical to the input file.
-        output_file.write_all(&bytes)?;
+        ulog_message.encode(&mut writer)?;
     }
 
+    writer.flush()?;
     Ok(())
 }

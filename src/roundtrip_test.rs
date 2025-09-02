@@ -7,6 +7,7 @@ mod tests {
     use std::io::{self, BufReader, Read, Write};
     use std::path::{Path, PathBuf};
     use crate::builder::ULogParserBuilder;
+    use crate::encode::Encode;
 
     #[derive(Debug)]
     struct TestResult {
@@ -14,68 +15,62 @@ mod tests {
         result: Result<(), String>,
     }
 
-    fn ulog_cat(input_path: &Path) -> Result<Box<Path>, Box<dyn Error>> {
-        let reader = BufReader::new(File::open(input_path)?);
-
-        let parser = ULogParserBuilder::new(reader)
-            .include_header(true)
-            .include_timestamp(true)
-            .include_padding(true)
-            .build()?;
-
-        let basename = input_path
-            .file_stem().expect("Failed to get basename")
-            .to_str().expect("Failed to convert basename to string");
-        let output_filename = basename.to_owned() + "_export";
-
-        // Create the output file path in the temp dir.
-        let output_path = Path::new(&env::temp_dir()).join(output_filename).with_extension("ulg");
-
-        // Open the output file for writing.
-        let mut output_file = File::create(output_path.clone())?;
-
-        for result in parser {
-            let ulog_message = result?;
-
-            let bytes: Vec<u8> = ulog_message.into();
-
-            // Write the bytes to the output file in ULOG format.
-            output_file.write_all(&bytes)?;
-        }
-
-        Ok(Box::from(output_path))
-    }
-
-
     #[test]
     fn test_roundtrip() {
         let current_dir = env::current_dir().expect("Failed to get current directory");
         let input_dir = current_dir.join("test_data/input");
         let mut results = Vec::new();
 
-        // Run `ulogcat` for each .ulg file in input_dir and assert the output file is identical to the input file.
         for entry in fs::read_dir(input_dir.clone()).expect("Failed to read input dir") {
             let entry = entry.expect("Failed to read ulg input file");
             let input_path = entry.path();
 
-            let output_path = ulog_cat(&input_path).expect("call to ulog_cat() failed");
+            let reader = BufReader::new(File::open(&input_path).expect("Failed to open input file"));
 
-            let result =
-                if output_path.exists() {
-                    match compare_files(&input_path, &output_path) {
-                        Ok(true) => {
-                            // Clean up the emitted file
-                            fs::remove_file(output_path).expect("Failed to remove emitted file");
-                            Ok(())
-                        }
-                        Ok(false) => Err(format!("Emitted ULOG file does not match input for {:?}", input_path)),
-                        Err(e) => Err(format!("File comparison failed: {}", e)),
+            let parser = ULogParserBuilder::new(reader)
+                .include_header(true)
+                .include_timestamp(true)
+                .include_padding(true)
+                .build()
+                .expect("Failed to build parser");
+
+            // Create output filename
+            let basename = input_path
+                .file_stem()
+                .expect("Failed to get basename")
+                .to_str()
+                .expect("Failed to convert basename to string");
+            let output_filename = basename.to_owned() + "_export";
+            let output_filename = format!("test_{}", output_filename);
+            
+            let output_path = Path::new(&env::temp_dir())
+                .join(output_filename)
+                .with_extension("ulg");
+
+            let mut output_file = File::create(&output_path).expect("Failed to create output file");
+
+            for result in parser {
+                let ulog_message = result.expect("Failed to parse message");
+
+                // Use the new Encode trait's encode method directly
+                ulog_message.encode(&mut output_file).expect("Encoding failed");
+            }
+
+            // Compare input and output files
+            let result = if output_path.exists() {
+                match compare_files(&input_path, &output_path) {
+                    Ok(true) => {
+                        // Clean up emitted file
+                        fs::remove_file(&output_path).expect("Failed to remove emitted file");
+                        Ok(())
                     }
-                } else {
-                    Err(format!("Emitted file not found for {:?}", output_path))
-                };
+                    Ok(false) => Err(format!("Emitted ULOG file does not match input for {:?}", input_path)),
+                    Err(e) => Err(format!("File comparison failed: {}", e)),
+                }
+            } else {
+                Err(format!("Emitted file not found for {:?}", output_path))
+            };
 
-            // Collect the result for this file
             results.push(TestResult {
                 input_file: input_path,
                 result,
@@ -84,15 +79,14 @@ mod tests {
 
         let mut all_passed = true;
 
-        // Report results
         println!("\nTest results:\n");
         for result in results {
-            let status = match result.result {
-                Ok(()) => "✅", // Success
+            let status = match &result.result {
+                Ok(()) => "✅",
                 Err(err) => {
                     all_passed = false;
                     &format!("❌ {}", err)
-                },  // Failure
+                }
             };
             let path_str = extract_relative_path(&result.input_file, "test_data");
             println!("test_ulogcat: {:<50} {}", path_str, status);
@@ -100,6 +94,7 @@ mod tests {
 
         assert!(all_passed);
     }
+
 
     // Function to extract the relative path after the given component
     fn extract_relative_path(file_path: &PathBuf, component: &str) -> String {

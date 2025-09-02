@@ -8,7 +8,7 @@ pub mod message_buf;
 pub mod model;
 pub mod errors;
 mod display;
-mod writer;
 pub mod builder;
 mod roundtrip_test;
 mod field_helpers;
+pub mod encode;

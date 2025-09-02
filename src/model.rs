@@ -287,10 +287,32 @@ pub mod inst {
         ArrayChar(Vec<char>),
         ArrayOther(Vec<Format>),
     }
+}
 
+impl inst::FieldValue {
+    pub fn to_scalars(&self) -> Option<Vec<inst::FieldValue>> {
+        use inst::FieldValue::*;
+        match self {
+            ArrayU8(v)   => Some(v.iter().map(|&x| ScalarU8(x)).collect()),
+            ArrayU16(v)  => Some(v.iter().map(|&x| ScalarU16(x)).collect()),
+            ArrayU32(v)  => Some(v.iter().map(|&x| ScalarU32(x)).collect()),
+            ArrayU64(v)  => Some(v.iter().map(|&x| ScalarU64(x)).collect()),
+            ArrayI8(v)   => Some(v.iter().map(|&x| ScalarI8(x)).collect()),
+            ArrayI16(v)  => Some(v.iter().map(|&x| ScalarI16(x)).collect()),
+            ArrayI32(v)  => Some(v.iter().map(|&x| ScalarI32(x)).collect()),
+            ArrayI64(v)  => Some(v.iter().map(|&x| ScalarI64(x)).collect()),
+            ArrayF32(v)  => Some(v.iter().map(|&x| ScalarF32(x)).collect()),
+            ArrayF64(v)  => Some(v.iter().map(|&x| ScalarF64(x)).collect()),
+            ArrayBool(v) => Some(v.iter().map(|&x| ScalarBool(x)).collect()),
+            ArrayChar(v) => Some(v.iter().map(|&x| ScalarChar(x)).collect()),
+            ArrayOther(v)=> Some(v.iter().map(|x| ScalarOther(x.clone())).collect()),
+            _ => None, // not an array
+        }
+    }
 }
 
 impl inst::Format {
+    #[deprecated]
     pub fn flatten(&self) -> Vec<(String, inst::FieldValue)> {
         let prefix:String = self.to_string();
 
@@ -302,26 +324,35 @@ impl inst::Format {
 
         for field in &self.fields {
             let current_path = format!("{}/{}", path, field.name);
-
-            match &field.value {
-                inst::FieldValue::ScalarOther(nested_format) => {
-                    // recursively flatten nested structures
-                    flattened.extend(nested_format.flatten_sub(&current_path));
-                }
-                inst::FieldValue::ArrayOther(array_of_formats) => {
-                    for (i, fmt) in array_of_formats.iter().enumerate() {
-                        let array_path = format!("{current_path}.{i:02}");
-                        flattened.extend(fmt.flatten_sub(&array_path));
-                    }
-                }
-                scalar_or_array => {
-                    // everything else (typed scalar or typed array)
-                    flattened.push((current_path, scalar_or_array.clone()));
+            if field.r#type.is_scalar() {
+                flattened.extend(self.flatten_data_type(current_path.clone(), &field.value));
+            } else {
+                let vec_of_scalars = &field.value.to_scalars().unwrap();
+                
+                for (index, value) in vec_of_scalars.iter().enumerate() {
+                    let array_path = format!("{current_path}.{index:02}");
+                    flattened.extend(self.flatten_data_type(array_path, value));
                 }
             }
         }
 
         flattened
+    }
+
+    // Helper method to flatten an inst::DataType, handling recursion if the type is OTHER
+    #[allow(clippy::unused_self)]
+    fn flatten_data_type(&self, path: String, value: &inst::FieldValue) -> Vec<(String, inst::FieldValue)> {
+        use inst::FieldValue::*;
+        match value {
+            ScalarOther(nested_format) => {
+                // Recursively flatten nested DataFormat
+                nested_format.flatten_sub(&path)
+            }
+            _ => {
+                // For any other scalar data type, just append the path and the data type
+                vec![(path, value.clone())]
+            }
+        }
     }
 }
 
