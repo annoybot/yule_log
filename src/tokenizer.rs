@@ -69,7 +69,7 @@ pub enum Token<'a> {
     // Whitespace is skipped by the tokenizer, not represented as a token.
 }
 
-pub fn tokenize(input: &str) -> VecDeque<Token> {
+pub fn tokenize(input: &str) -> VecDeque<Token<'_>> {
     let mut tokens = VecDeque::new();
 
     for caps in TOKEN_REGEXP.captures_iter(input) {
