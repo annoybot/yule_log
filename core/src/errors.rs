@@ -52,4 +52,10 @@ pub enum ULogError {
 
     #[error("Invalid Default Parameter Type")]
     InvalidDefaultParameterType,
+
+    #[error("Type mismatch: {0}")]
+    TypeMismatch(String),
+
+    #[error("Invalid LoggedData field name: {0}")]
+    InvalidFieldName(String),
 }

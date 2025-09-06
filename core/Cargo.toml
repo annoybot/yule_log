@@ -1,0 +1,32 @@
+[package]
+name = "yule_log"
+authors = ["https://github.com/annoybot"]
+description = "A streaming parser for PX4 ULOG files."
+keywords = ["parser", "ulog", "px4"]
+readme = "README.md"
+license = "MIT"
+repository = "https://github.com/annoybot/yule_log"
+version = "0.2.2"
+edition = "2021"
+publish = true
+
+[dependencies]
+byteorder = "1.5.0"
+thiserror = "1.0"
+log = "0.4"
+env_logger = "0.11"
+regex = "1.11.1"
+lazy_static = "1.5.0"
+serde = { version = "1.0", features = ["derive"] }
+yule_log_macros = { path = "../macros", optional = true }
+
+[features]
+default = []
+macros = ["yule_log_macros"]
+
+[dev-dependencies]
+tempfile = "3.13.0"
+
+[[example]]
+name = "derive_macros"
+required-features = ["macros"]
