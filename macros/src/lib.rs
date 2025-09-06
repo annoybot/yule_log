@@ -4,10 +4,10 @@
 //! to ULOG subscriptions.
 //!
 //! # Example
-//! ```ignore
+//! ```rust
+//! #[cfg(feature = "macros")] 
 //! extern crate yule_log_macros;
 //! use yule_log_macros::{ULogData, ULogMessages};
-//! use yule_log::model::msg::UlogMessage;
 //!
 //! #[derive(ULogData)]
 //! struct VehicleLocalPosition { timestamp: u64, x: f32, y: f32, z: f32 }
@@ -15,7 +15,7 @@
 //! #[derive(ULogMessages)]
 //! enum LoggedMessages {
 //!     VehicleLocalPosition(VehicleLocalPosition),
-//!     Other(UlogMessage),
+//!     Other(yule_log::model::msg::UlogMessage),
 //! }
 //!
 //! let reader = std::io::BufReader::new(std::fs::File::open("test_data/sample.ulg")?);

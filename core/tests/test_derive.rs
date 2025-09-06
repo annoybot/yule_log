@@ -10,7 +10,7 @@ pub enum LoggedMessages {
     VehicleLocalPosition(VehicleLocalPosition),
     ActuatorOutputs(ActuatorOutputs),
     #[yule_log(forward_other)]
-    Other(yule_log::model::msg::UlogMessage),
+    Other(UlogMessage),
 }
 
 #[derive(ULogData)]
