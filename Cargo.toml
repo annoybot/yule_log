@@ -1,7 +1,9 @@
 [workspace]
+resolver = "2"
 members = [
     "core",
-    "macros"
+    "macros",
+    "integration_tests"
 ]
 
 [workspace.package]
