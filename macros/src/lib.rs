@@ -5,7 +5,7 @@
 //!
 //! # Example
 //! ```rust
-//! #[cfg(feature = "macros")] 
+//! #[cfg(feature = "macros")]  {
 //! extern crate yule_log_macros;
 //! use yule_log_macros::{ULogData, ULogMessages};
 //!
@@ -29,6 +29,7 @@
 //!     }
 //! }
 //! # Ok::<(), Box<dyn std::error::Error>>(())
+//! }
 //! ```
 
 use syn::spanned::Spanned;

@@ -1,5 +1,10 @@
 [package]
 name = "yule_log_macros"
+description = "Derive macros for the yule_log ULOG parser crate."
+keywords = ["parser", "ulog", "px4"]
+readme = "../README.md"
+license = "MIT"
+repository = "https://github.com/annoybot/yule_log"
 version = "0.2.2"
 edition = "2021"
 publish = true
@@ -8,10 +13,13 @@ publish = true
 proc-macro = true
 
 [dependencies]
-darling = "0.21.3"
-proc-macro2 = "1.0.101"
-quote = "1.0.40"
-syn = "2.0.106"
-heck = "0.5.0"
+proc-macro2 = { workspace = true, features = ["proc-macro"] }
+quote       = { workspace = true, features = ["proc-macro"] }
+syn         = { workspace = true, features = ["proc-macro"] }
+darling     = { workspace = true }
+heck        = { workspace = true }
+
+[package.metadata.docs.rs]
+features = []
 
 

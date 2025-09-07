@@ -18,7 +18,12 @@ env_logger = "0.11"
 regex = "1.11.1"
 lazy_static = "1.5.0"
 serde = { version = "1.0", features = ["derive"] }
-yule_log_macros = { version = "0.2.2", optional = true }
+
+yule_log_macros = { version = "=0.2.2", path = "../macros", optional = true }
+
+# Enforce version lock between yule_log and yule_log_macros
+#[target.'cfg(any())'.dependencies]
+#yule_log_macros = { version = "=0.2.2", path = "../macros", optional = true}
 
 [features]
 default = []
@@ -30,3 +35,6 @@ tempfile = "3.13.0"
 [[example]]
 name = "derive_macros"
 required-features = ["macros"]
+
+[package.metadata.docs.rs]
+features = ["macros"]
