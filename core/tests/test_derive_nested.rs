@@ -34,6 +34,19 @@ pub struct PositionSetpoint {
     alt: f32,   // altitude AMSL, in m
 }
 
+#[derive(ULogData, Debug)]
+pub struct TelemetryHeartbeat {
+    heartbeats: Vec<Heartbeat>,
+}
+
+#[derive(ULogData, Debug)]
+pub struct Heartbeat {
+    timestamp: u64,
+    system_id: u8,
+    component_id: u8,
+    state: u8,
+}
+
 
 #[test]
 fn integration_macros_nested() -> Result<(), Box<dyn std::error::Error>> {

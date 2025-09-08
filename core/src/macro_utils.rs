@@ -1,5 +1,5 @@
 use crate::errors::ULogError;
-use crate::model::inst::{Field, FieldValue};
+use crate::model::inst::{Field, FieldValue, Format};
 use crate::model::inst;
 
 
@@ -86,5 +86,3 @@ pub trait ULogAccess {
     /// Create an accessor from the subscription definition format.
     fn from_format(format: &crate::model::def::Format) -> Result<Self::Accessor, crate::errors::ULogError>;
 }
-
-
