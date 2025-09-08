@@ -232,6 +232,52 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
                 #accessor_name::from_format(format)
             }
         }
+        
+        // --------------------------------------------------------------------
+        // Automatically implement FromField for nested structs and arrays of nested structs
+        // --------------------------------------------------------------------
+
+        
+        // Single nested struct: ScalarOther
+        impl yule_log::macro_utils::FromField for #struct_name {
+            fn from_field(inst_field: &yule_log::model::inst::Field)
+                -> Result<Self, yule_log::errors::ULogError>
+            {
+                match &inst_field.value {
+                    yule_log::model::inst::FieldValue::ScalarOther(inst_format) => {
+                        let accessor = #accessor_name::from_format(&inst_format.def_format)?;
+                        accessor.get_data(inst_format)
+                    }
+                    _ => Err(yule_log::errors::ULogError::TypeMismatch(
+                        concat!("expected nested struct for ", stringify!(#struct_name)).into()
+                    )),
+                }
+            }
+        }
+        
+        
+        // Array of nested structs: ArrayOther
+        /*
+        impl yule_log::macro_utils::FromField for Vec<#struct_name> {
+            fn from_field(field: &yule_log::model::inst::Field)
+                -> Result<Self, yule_log::errors::ULogError>
+            {
+                match &field.value {
+                    yule_log::model::inst::FieldValue::ArrayOther(formats) => {
+                        let mut results = std::vec::Vec::with_capacity(formats.len());
+                        for f in formats {
+                            let accessor = #accessor_name::from_format(f)?;
+                            results.push(accessor.get_data(f)?);
+                        }
+                        Ok(results)
+                    }
+                    _ => Err(yule_log::errors::ULogError::TypeMismatch(
+                        concat!("expected array of nested structs for ", stringify!(#struct_name)).into()
+                    )),
+                }
+            }
+        }*/
+
     };
 
     expanded.into()

@@ -2,11 +2,17 @@ use crate::errors::ULogError;
 use crate::model::inst::{Field, FieldValue};
 use crate::model::inst;
 
-// FIXME: Replace these InternalErrors with TypeMismatch one day.
 
-
-// FromField
-
+/// FromField
+///
+/// Converts an inst::Field to the specified type, with runtime
+/// error checking.
+/// 
+/// Type information from the ULOG file is not available at compile
+/// time.  These helper enable the #[derive(ULogData)] proc macro to 
+/// convert the fields in the annotated struct with runtime type checking 
+/// against the inst::Field obtained from the parser.
+/// 
 pub trait FromField: Sized {
     fn from_field(field: &inst::Field) -> Result<Self, crate::errors::ULogError>;
 }
@@ -18,7 +24,7 @@ macro_rules! impl_fromfield_scalar {
             fn from_field(field: &Field) -> Result<Self, ULogError> {
                 match &field.value {
                     FieldValue::$variant(v) => Ok(*v),
-                    other => Err(ULogError::InternalError(format!(
+                    other => Err(ULogError::TypeMismatch(format!(
                         "Expected {} but got {:?}", stringify!($ty), other
                     ))),
                 }
@@ -34,7 +40,7 @@ macro_rules! impl_fromfield_array {
             fn from_field(field: &Field) -> Result<Self, ULogError> {
                 match &field.value {
                     FieldValue::$variant(v) => Ok(v.clone()),
-                    other => Err(ULogError::InternalError(format!(
+                    other => Err(ULogError::TypeMismatch(format!(
                         "Expected Vec<{}> but got {:?}", stringify!($ty), other
                     ))),
                 }

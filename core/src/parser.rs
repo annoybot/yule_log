@@ -418,6 +418,7 @@ impl<R: Read> ULogParser<R> {
             // It can be filled out only after we've seen all the subscriptions in the file.
             // We have omitted it here so it can be filled later on if required.
             multi_id_index: None,
+            def_format: format.clone(),
         })
     }
 
