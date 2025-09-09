@@ -150,30 +150,7 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
         let name = named_ident(f);
         Ident::new(&format!("{}_index", name), name.span())
     }
-
-    let vec_wrapper_ident = Ident::new(&format!("__yule_log_derive_VecOf{}", struct_name), struct_name.span());
-
-
-    fn is_vec_of_type(f_ty: &syn::Type, target_ident: &syn::Ident) -> bool {
-        if let syn::Type::Path(type_path) = f_ty {
-            // Ensure there is at least one path segment
-            if let Some(seg) = type_path.path.segments.last() {
-                if seg.ident == "Vec" {
-                    // Look for generic argument
-                    if let syn::PathArguments::AngleBracketed(ref args) = seg.arguments {
-                        if args.args.len() == 1 {
-                            if let syn::GenericArgument::Type(syn::Type::Path(inner_type_path)) = &args.args[0] {
-                                // Compare last segment of inner type to target_ident
-                                return inner_type_path.path.segments.last().unwrap().ident == *target_ident;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        false
-    }
-
+    
     // Generate index fields to hold the index of the field in the LoggedData message, for efficient lookup.
     let index_fields = fields.iter().map(|f| {
         let idx_ident = idx_ident(f);
@@ -208,15 +185,9 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
         let name = named_ident(f);
         let idx_ident = idx_ident(f);
         let ty = &f.ty;
-
-        if is_vec_of_type(ty, struct_name) {
-            quote! {
-                #name: <#vec_wrapper_ident as crate::FromField>::from_field(&format.fields[self.#idx_ident])?.0
-            }
-        } else {
-            quote! {
-                #name: <#ty as crate::FromField>::from_field(&format.fields[self.#idx_ident])?
-            }
+        
+        quote! {
+            #name: <#ty as crate::FromField>::from_field(&format.fields[self.#idx_ident])?
         }
     });
 
@@ -297,6 +268,7 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
                     
                         let mut results = ::std::vec::Vec::with_capacity(formats.len());
                     
+                        // The user must define a struct mapped to this format, which will make 
                         // All elements have the same type per the ULOG spec. So we only need to create the accessor once based on the first
                         let accessor = #accessor_name::from_format(&formats[0].def_format)?;
                     

@@ -13,7 +13,7 @@ pub enum LoggedMessages {
     Other(UlogMessage),
 }
 
-#[derive(ULogData)]
+#[derive(ULogData, Debug)]
 pub struct VehicleLocalPosition {
     timestamp: u64,
     x: f32,
@@ -21,8 +21,8 @@ pub struct VehicleLocalPosition {
     z: f32,
 }
 
-#[derive(ULogData)]
-#[yule_log(multi_id=1)]
+#[derive(ULogData, Debug)]
+#[yule_log(multi_id=0)]
 pub struct ActuatorOutputs {
     timestamp: u64,
     output: Vec<f32>,
@@ -37,7 +37,7 @@ fn integration_macros_stream() -> Result<(), Box<dyn std::error::Error>> {
 
     //FIXME: test_derive does not really test the output.
     
-    for msg_res in stream.take(5) {
+    for msg_res in stream {
         let msg = msg_res?;
         match msg {
             LoggedMessages::VehicleLocalPosition(v) => {
