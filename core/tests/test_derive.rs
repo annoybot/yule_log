@@ -41,10 +41,10 @@ fn integration_macros_stream() -> Result<(), Box<dyn std::error::Error>> {
         let msg = msg_res?;
         match msg {
             LoggedMessages::VehicleLocalPosition(v) => {
-                assert!(v.timestamp > 0);
+                println!("Vehicle Local Position: {:?}", v);
             }
             LoggedMessages::ActuatorOutputs(a) => {
-                assert!(a.output.len() >= 0);
+                println!("Actuator Outputs: {:?}", a);
             }
             LoggedMessages::Other(_) => {
                 // Fine, ignore

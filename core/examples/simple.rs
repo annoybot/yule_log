@@ -19,20 +19,36 @@ fn process_file(ulog_path: Box<Path>) -> Result<(), Box<dyn Error>> {
         let ulog_message = result?;
 
         match ulog_message {
+            /*
             UlogMessage::Header(header) => println!("HEADER: {header:?}"),
             UlogMessage::FlagBits(flag_bits) => println!("FLAG_BITS: {flag_bits:?}"),
             UlogMessage::Info(info) => println!("INFO: {info}"),
             UlogMessage::MultiInfo(multi_info) => println!("MULTI INFO: {multi_info}"),
-            UlogMessage::FormatDefinition(format) => println!("FORMAT_DEFINITION: {format:?}"),
+            
+             */
+            UlogMessage::FormatDefinition(format) => {
+                if true || format.name.starts_with("telemetry_heartbeat") {
+                    println!("FORMAT_DEFINITION: {format:?}\n\n\n\n")
+                }
+            },
+            UlogMessage::AddSubscription(sub) => { 
+                if true || sub.message_name.contains("heartbeat") { 
+                    println!("SUBSCRIPTION_NAME: {sub:?}\n")
+                }
+            },
+            /*
             UlogMessage::Parameter(param) => println!("PARAM: {param}"),
             UlogMessage::DefaultParameter(param) => println!("PARAM DEFAULT: {param}"),
             UlogMessage::LoggedData(data) => println!("LOGGED_DATA: {data:?}"),
-            UlogMessage::AddSubscription(sub) => println!("SUBSCRIPTION: {sub:?}"),
+            
             UlogMessage::LoggedString(log) => println!("LOGGED_STRING: {log}"),
             UlogMessage::TaggedLoggedString(log) => println!("TAGGED_LOGGED_STRING: {log}"),
             UlogMessage::Unhandled { msg_type, .. } => println!("Unhandled msg type: {}", msg_type as char),
             UlogMessage::Ignored { msg_type, .. } => println!("Ignored msg type:  {}", msg_type as char),
             UlogMessage::DropoutMark(dropout) => { println!("Dropout mark: {dropout}") }
+            
+             */
+            _ => {}
         }
     }
 

@@ -9,6 +9,7 @@ use yule_log_macros::{ULogData, ULogMessages};
 #[derive(ULogMessages)]
 pub enum LoggedMessages {
     PositionSetpointTriplet(PositionSetpointTriplet),
+    TelemetryStatus(TelemetryStatus),
     #[yule_log(forward_other)]
     Other(UlogMessage),
 }
@@ -34,13 +35,17 @@ pub struct PositionSetpoint {
     alt: f32,   // altitude AMSL, in m
 }
 
+// Heartbeat uint64_t timestamp; uint8_t system_id; uint8_t component_id; uint8_t type; uint8_t state; uint8_t[4] _padding0
+
 #[derive(ULogData, Debug)]
-pub struct TelemetryHeartbeat {
-    heartbeats: Vec<Heartbeat>,
+#[yule_log(multi_id=1)]
+pub struct TelemetryStatus {
+    //timestamp: u64,
+    heartbeats: Vec<TelemetryHeartbeat>,
 }
 
 #[derive(ULogData, Debug)]
-pub struct Heartbeat {
+pub struct TelemetryHeartbeat {
     timestamp: u64,
     system_id: u8,
     component_id: u8,
@@ -63,6 +68,9 @@ fn integration_macros_nested() -> Result<(), Box<dyn std::error::Error>> {
             LoggedMessages::PositionSetpointTriplet(v) => {
                 println!("{:?}", v);
                 //assert!(v.timestamp > 0);
+            }
+            LoggedMessages::TelemetryStatus(t) => {
+                println!("{:?}", t);
             }
             LoggedMessages::Other(_) => {
                 // Fine, ignore

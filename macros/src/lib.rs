@@ -211,11 +211,11 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
 
         if is_vec_of_type(ty, struct_name) {
             quote! {
-                #name: <#vec_wrapper_ident as yule_log::macro_utils::FromField>::from_field(&format.fields[self.#idx_ident])?.0
+                #name: <#vec_wrapper_ident as crate::FromField>::from_field(&format.fields[self.#idx_ident])?.0
             }
         } else {
             quote! {
-                #name: <#ty as yule_log::macro_utils::FromField>::from_field(&format.fields[self.#idx_ident])?
+                #name: <#ty as crate::FromField>::from_field(&format.fields[self.#idx_ident])?
             }
         }
     });
@@ -264,11 +264,11 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
         }
         
         // --------------------------------------------------------------------
-        // Automatically implement FromField for nested structs and arrays of nested structs.
+        // Implement FromField for nested structs and arrays of nested structs.
         // --------------------------------------------------------------------
         
         // Single nested struct: ScalarOther
-        impl yule_log::macro_utils::FromField for #struct_name {
+        impl crate::FromField for #struct_name {
             fn from_field(inst_field: &yule_log::model::inst::Field)
                 -> Result<Self, yule_log::errors::ULogError>
             {
@@ -283,18 +283,16 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
                 }
             }
         }
-        
-        pub struct #vec_wrapper_ident(pub ::std::vec::Vec<#struct_name>);
-        
+
         // Array of structs: ArrayOther
-        impl yule_log::macro_utils::FromField for #vec_wrapper_ident {
+        impl crate::FromField for ::std::vec::Vec<#struct_name> {
             fn from_field(field: &yule_log::model::inst::Field)
                 -> Result<Self, yule_log::errors::ULogError>
             {
                 match &field.value {
                     yule_log::model::inst::FieldValue::ArrayOther(formats) => {
                         if formats.is_empty() {
-                            return Ok( #vec_wrapper_ident(::std::vec::Vec::new()) );
+                            return Ok( ::std::vec::Vec::new() );
                         }
                     
                         let mut results = ::std::vec::Vec::with_capacity(formats.len());
@@ -305,7 +303,7 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
                         for f in formats {
                             results.push(accessor.get_data(f)?);
                         }
-                        Ok( #vec_wrapper_ident(results) )
+                        Ok( results )
                     }
                     _ => Err(yule_log::errors::ULogError::TypeMismatch(
                         concat!("expected array of nested structs for ", stringify!(#struct_name)).into()
@@ -507,6 +505,80 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
         }
     };
 
+    // Implement FromField for scalar and array types
+    let scalar_impls = [
+        ("u8", "ScalarU8"),
+        ("u16", "ScalarU16"),
+        ("u32", "ScalarU32"),
+        ("u64", "ScalarU64"),
+        ("i8", "ScalarI8"),
+        ("i16", "ScalarI16"),
+        ("i32", "ScalarI32"),
+        ("i64", "ScalarI64"),
+        ("f32", "ScalarF32"),
+        ("f64", "ScalarF64"),
+        ("bool", "ScalarBool"),
+        ("char", "ScalarChar"),
+    ]
+        .iter()
+        .map(|(ty, variant)| {
+            let ty_ident = Ident::new(ty, proc_macro2::Span::call_site());
+            let variant_ident = Ident::new(variant, proc_macro2::Span::call_site());
+            quote! {
+                impl FromField for #ty_ident {
+                    fn from_field(field: &yule_log::model::inst::Field) -> Result<Self, yule_log::errors::ULogError> {
+                        match &field.value {
+                            yule_log::model::inst::FieldValue::#variant_ident(v) => Ok(*v),
+                            other => Err(yule_log::errors::ULogError::InternalError(format!(
+                                "Expected {} but got {:?}", stringify!(#ty_ident), other
+                            ))),
+                        }
+                    }
+                }
+            }
+        });
+
+    let array_impls = [
+        ("u8", "ArrayU8"),
+        ("u16", "ArrayU16"),
+        ("u32", "ArrayU32"),
+        ("u64", "ArrayU64"),
+        ("i8", "ArrayI8"),
+        ("i16", "ArrayI16"),
+        ("i32", "ArrayI32"),
+        ("i64", "ArrayI64"),
+        ("f32", "ArrayF32"),
+        ("f64", "ArrayF64"),
+        ("bool", "ArrayBool"),
+        ("char", "ArrayChar"),
+    ]
+        .iter()
+        .map(|(ty, variant)| {
+            let ty_ident = Ident::new(ty, proc_macro2::Span::call_site());
+            let variant_ident = Ident::new(variant, proc_macro2::Span::call_site());
+            quote! {
+                impl FromField for Vec<#ty_ident> {
+                    fn from_field(field: &yule_log::model::inst::Field) -> Result<Self, yule_log::errors::ULogError> {
+                        match &field.value {
+                            yule_log::model::inst::FieldValue::#variant_ident(v) => Ok(v.clone()),
+                            other => Err(yule_log::errors::ULogError::InternalError(format!(
+                                "Expected Vec<{}> but got {:?}", stringify!(#ty_ident), other
+                            ))),
+                        }
+                    }
+                }
+            }
+        });
+
+    let from_field_impls = quote! {
+        pub trait FromField: Sized {
+            fn from_field(field: &yule_log::model::inst::Field) -> Result<Self, yule_log::errors::ULogError>;
+        }
+
+        #(#scalar_impls)*
+        #(#array_impls)*
+    };
+
     let expanded = quote! {
         #[doc = "Internal enum holding accessors for each variant."]
         #[allow(non_camel_case_types)]
@@ -525,6 +597,7 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
             fn new(reader: R) -> Result<Self, yule_log::errors::ULogError> {
                 let mut parser = yule_log::builder::ULogParserBuilder::new(reader)
                     .include_timestamp(true)
+                    .include_padding(true)
                     .build()
                     .map_err(|e| yule_log::errors::ULogError::InternalError(e.to_string()))?;
 
@@ -582,6 +655,8 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
                 #hidden_struct_name::new(reader)
             }
         }
+        
+        #from_field_impls
     };
 
     expanded.into()
