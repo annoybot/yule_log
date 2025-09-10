@@ -564,7 +564,7 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
-pub fn ulog_preamble(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn preamble(_attr: TokenStream, item: TokenStream) -> TokenStream {
     // Parse the annotated module
     let mut module = syn::parse_macro_input!(item as ItemMod);
 

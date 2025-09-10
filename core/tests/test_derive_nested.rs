@@ -2,12 +2,12 @@
 
 use std::fs::File;
 use std::io::BufReader;
-use yule_log_macros::ulog_preamble;
+use yule_log_macros::preamble;
 
-#[ulog_preamble]
+#[preamble]
 pub mod ulog {
     use yule_log::model::msg::UlogMessage;
-    use yule_log_macros::{ulog_preamble, ULogData, ULogMessages};
+    use yule_log_macros::{ULogData, ULogMessages};
 
     #[derive(ULogMessages)]
     pub enum LoggedMessages {
