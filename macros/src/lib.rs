@@ -34,7 +34,7 @@
 
 use syn::spanned::Spanned;
 use proc_macro::TokenStream;
-use syn::{DeriveInput, Ident};
+use syn::{DeriveInput, Ident, ItemMod};
 use darling::FromDeriveInput;
 use darling::FromVariant;
 use darling::FromField;
@@ -180,6 +180,9 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
         }
     });
 
+    let from_field_path: syn::Path = syn::parse_str("FromField").unwrap();
+
+
     // Generate get_data fields using FromField trait
     let get_data_fields = fields.iter().map(|f| {
         let name = named_ident(f);
@@ -187,7 +190,7 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
         let ty = &f.ty;
         
         quote! {
-            #name: <#ty as crate::FromField>::from_field(&format.fields[self.#idx_ident])?
+            #name: <#ty as #from_field_path>::from_field(&format.fields[self.#idx_ident])?
         }
     });
 
@@ -239,7 +242,7 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
         // --------------------------------------------------------------------
         
         // Single nested struct: ScalarOther
-        impl crate::FromField for #struct_name {
+        impl #from_field_path for #struct_name {
             fn from_field(inst_field: &yule_log::model::inst::Field)
                 -> Result<Self, yule_log::errors::ULogError>
             {
@@ -256,7 +259,7 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
         }
 
         // Array of structs: ArrayOther
-        impl crate::FromField for ::std::vec::Vec<#struct_name> {
+        impl #from_field_path for ::std::vec::Vec<#struct_name> {
             fn from_field(field: &yule_log::model::inst::Field)
                 -> Result<Self, yule_log::errors::ULogError>
             {
@@ -477,79 +480,7 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
         }
     };
 
-    // Implement FromField for scalar and array types
-    let scalar_impls = [
-        ("u8", "ScalarU8"),
-        ("u16", "ScalarU16"),
-        ("u32", "ScalarU32"),
-        ("u64", "ScalarU64"),
-        ("i8", "ScalarI8"),
-        ("i16", "ScalarI16"),
-        ("i32", "ScalarI32"),
-        ("i64", "ScalarI64"),
-        ("f32", "ScalarF32"),
-        ("f64", "ScalarF64"),
-        ("bool", "ScalarBool"),
-        ("char", "ScalarChar"),
-    ]
-        .iter()
-        .map(|(ty, variant)| {
-            let ty_ident = Ident::new(ty, proc_macro2::Span::call_site());
-            let variant_ident = Ident::new(variant, proc_macro2::Span::call_site());
-            quote! {
-                impl FromField for #ty_ident {
-                    fn from_field(field: &yule_log::model::inst::Field) -> Result<Self, yule_log::errors::ULogError> {
-                        match &field.value {
-                            yule_log::model::inst::FieldValue::#variant_ident(v) => Ok(*v),
-                            other => Err(yule_log::errors::ULogError::InternalError(format!(
-                                "Expected {} but got {:?}", stringify!(#ty_ident), other
-                            ))),
-                        }
-                    }
-                }
-            }
-        });
 
-    let array_impls = [
-        ("u8", "ArrayU8"),
-        ("u16", "ArrayU16"),
-        ("u32", "ArrayU32"),
-        ("u64", "ArrayU64"),
-        ("i8", "ArrayI8"),
-        ("i16", "ArrayI16"),
-        ("i32", "ArrayI32"),
-        ("i64", "ArrayI64"),
-        ("f32", "ArrayF32"),
-        ("f64", "ArrayF64"),
-        ("bool", "ArrayBool"),
-        ("char", "ArrayChar"),
-    ]
-        .iter()
-        .map(|(ty, variant)| {
-            let ty_ident = Ident::new(ty, proc_macro2::Span::call_site());
-            let variant_ident = Ident::new(variant, proc_macro2::Span::call_site());
-            quote! {
-                impl FromField for Vec<#ty_ident> {
-                    fn from_field(field: &yule_log::model::inst::Field) -> Result<Self, yule_log::errors::ULogError> {
-                        match &field.value {
-                            yule_log::model::inst::FieldValue::#variant_ident(v) => Ok(v.clone()),
-                            other => Err(yule_log::errors::ULogError::InternalError(format!(
-                                "Expected Vec<{}> but got {:?}", stringify!(#ty_ident), other
-                            ))),
-                        }
-                    }
-                }
-            }
-        });
-
-    let from_field_impls = quote! {
-        pub trait FromField: Sized {
-            fn from_field(field: &yule_log::model::inst::Field) -> Result<Self, yule_log::errors::ULogError>;
-        }
-
-        #(#scalar_impls)*
-        #(#array_impls)*
-    };
 
     let expanded = quote! {
         #[doc = "Internal enum holding accessors for each variant."]
@@ -627,9 +558,102 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
                 #hidden_struct_name::new(reader)
             }
         }
-        
-        #from_field_impls
     };
 
     expanded.into()
+}
+
+#[proc_macro_attribute]
+pub fn ulog_preamble(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    // Parse the annotated module
+    let mut module = syn::parse_macro_input!(item as ItemMod);
+
+    // Implement FromField for scalar and array types
+    let scalar_impls = [
+        ("u8", "ScalarU8"),
+        ("u16", "ScalarU16"),
+        ("u32", "ScalarU32"),
+        ("u64", "ScalarU64"),
+        ("i8", "ScalarI8"),
+        ("i16", "ScalarI16"),
+        ("i32", "ScalarI32"),
+        ("i64", "ScalarI64"),
+        ("f32", "ScalarF32"),
+        ("f64", "ScalarF64"),
+        ("bool", "ScalarBool"),
+        ("char", "ScalarChar"),
+    ]
+        .iter()
+        .map(|(ty, variant)| {
+            let ty_ident = Ident::new(ty, proc_macro2::Span::call_site());
+            let variant_ident = Ident::new(variant, proc_macro2::Span::call_site());
+            quote! {
+                impl FromField for #ty_ident {
+                    fn from_field(field: &yule_log::model::inst::Field) -> Result<Self, yule_log::errors::ULogError> {
+                        match &field.value {
+                            yule_log::model::inst::FieldValue::#variant_ident(v) => Ok(*v),
+                            other => Err(yule_log::errors::ULogError::InternalError(format!(
+                                "Expected {} but got {:?}", stringify!(#ty_ident), other
+                            ))),
+                        }
+                    }
+                }
+            }
+        });
+
+    let array_impls = [
+        ("u8", "ArrayU8"),
+        ("u16", "ArrayU16"),
+        ("u32", "ArrayU32"),
+        ("u64", "ArrayU64"),
+        ("i8", "ArrayI8"),
+        ("i16", "ArrayI16"),
+        ("i32", "ArrayI32"),
+        ("i64", "ArrayI64"),
+        ("f32", "ArrayF32"),
+        ("f64", "ArrayF64"),
+        ("bool", "ArrayBool"),
+        ("char", "ArrayChar"),
+    ]
+        .iter()
+        .map(|(ty, variant)| {
+            let ty_ident = Ident::new(ty, proc_macro2::Span::call_site());
+            let variant_ident = Ident::new(variant, proc_macro2::Span::call_site());
+            quote! {
+                impl FromField for Vec<#ty_ident> {
+                    fn from_field(field: &yule_log::model::inst::Field) -> Result<Self, yule_log::errors::ULogError> {
+                        match &field.value {
+                            yule_log::model::inst::FieldValue::#variant_ident(v) => Ok(v.clone()),
+                            other => Err(yule_log::errors::ULogError::InternalError(format!(
+                                "Expected Vec<{}> but got {:?}", stringify!(#ty_ident), other
+                            ))),
+                        }
+                    }
+                }
+            }
+        });
+
+    let from_field_impls = quote! {
+        pub trait FromField: Sized {
+            fn from_field(field: &yule_log::model::inst::Field) -> Result<Self, yule_log::errors::ULogError>;
+        }
+
+        #(#scalar_impls)*
+        #(#array_impls)*
+    };
+
+    // Inject trait into the module body
+    if let Some((_, items)) = &mut module.content {
+        items.push(syn::Item::Verbatim(from_field_impls));
+    } else {
+        return syn::Error::new_spanned(
+            &module,
+            "#[ulog_preamble] requires an inline `mod { ... }`"
+        )
+            .to_compile_error()
+            .into();
+    }
+
+    // Return the modified module
+    TokenStream::from(quote!(#module))
 }

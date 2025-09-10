@@ -1,35 +1,42 @@
 
+use yule_log::model::msg::UlogMessage;
 use std::fs::File;
 use std::io::BufReader;
-use yule_log_macros::{ULogData, ULogMessages};
-use yule_log::model::msg::UlogMessage;
+use yule_log_macros::ulog_preamble;
 
-#[derive(ULogMessages)]
-pub enum LoggedMessages {
-    VehicleLocalPosition(VehicleLocalPosition),
+#[ulog_preamble]
+pub mod ulog {
+    use yule_log_macros::{ulog_preamble, ULogData, ULogMessages};
+    use yule_log::model::msg::UlogMessage;
+    
+    #[derive(ULogMessages)]
+    pub enum LoggedMessages {
+        VehicleLocalPosition(VehicleLocalPosition),
 
-    ActuatorOutputs(ActuatorOutputs),
-    #[yule_log(forward_other)]
-    Other(yule_log::model::msg::UlogMessage),
-}
+        ActuatorOutputs(ActuatorOutputs),
+        #[yule_log(forward_other)]
+        Other(yule_log::model::msg::UlogMessage),
+    }
 
-#[derive(ULogData)]
-pub struct VehicleLocalPosition {
-    timestamp: u64,
-    x: f32,
-    y: f32,
-    z: f32,
-}
+    #[derive(ULogData)]
+    pub struct VehicleLocalPosition {
+        pub timestamp: u64,
+        pub x: f32,
+        pub y: f32,
+        pub z: f32,
+    }
 
-#[derive(ULogData)]
-#[yule_log(multi_id=1)]
-pub struct ActuatorOutputs {
-    timestamp: u64,
-    output: Vec<f32>,
+    #[derive(ULogData)]
+    #[yule_log(multi_id = 1)]
+    pub struct ActuatorOutputs {
+        pub timestamp: u64,
+        pub output: Vec<f32>,
+    }
 }
 
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    use crate::ulog::LoggedMessages;
     let reader = BufReader::new(File::open("core/test_data/input/sample_log_small.ulg")?);
 
     let stream = LoggedMessages::stream(reader)?;
