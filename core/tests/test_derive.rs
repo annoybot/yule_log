@@ -43,7 +43,6 @@ fn integration_macros_stream() -> Result<(), Box<dyn std::error::Error>> {
     let stream = LoggedMessages::stream(reader)?;
 
     //FIXME: test_derive does not really test the output.
-    
     for msg_res in stream {
         let msg = msg_res?;
         match msg {

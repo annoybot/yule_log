@@ -184,10 +184,11 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
 
 
     // Generate get_data fields using FromField trait
-    let get_data_fields = fields.iter().map(|f| {
-        let name = named_ident(f);
-        let idx_ident = idx_ident(f);
-        let ty = &f.ty;
+    let get_data_fields = 
+        fields.iter().map(|f| {
+            let name = named_ident(f);
+            let idx_ident = idx_ident(f);
+            let ty = &f.ty;
         
         quote! {
             #name: <#ty as #from_field_path>::from_field(&format.fields[self.#idx_ident])?
