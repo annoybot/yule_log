@@ -188,29 +188,51 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
 
     let idx_idents: Vec<_> = fields.iter().map(|f| idx_ident(f)).collect();
 
-
-    // Generate from_format fields.
+    // Generate accessor struct from the fields
     let accessor_struct = {
         quote! {
             {
+                // Build a runtime map from ULOG format field name -> index for efficient lookup.
                 let map: std::collections::HashMap<String, usize> =
                     format.fields.iter().enumerate()
                         .map(|(i, f)| (f.name.clone(), i))
                         .collect();
-
-                // Construct struct with `idx_ident: index` for each field
-                Self {
+        
+                // Vector to collect names of any fields not found in the map.
+                let mut missing = Vec::new();
+        
+                // Construct the struct.  If any fields are missing, they will be recorded in `missing`.
+                let result = Self {
                     #(
-                        #idx_idents: *map.get(#ulog_names)
-                            .ok_or_else(|| yule_log::errors::ULogError::InvalidFieldName(
-                                format!("Field `{}` not found in subscription `{}`", #ulog_names, #subscription)
-                            ))?
+                        #idx_idents: {
+                            match map.get(#ulog_names) {
+                                Some(&idx) => idx,             // Field found, record its index.
+                                None => {
+                                    missing.push(#ulog_names); // Field not found, add name to `missing` for error reporting later.
+                                    0                          // Placeholder index. This is safe because we will error out below.
+                                }
+                            }
+                        }
                     ),*
+                };
+        
+                // Check whether any fields were missing. If so return an error.
+                if !missing.is_empty() {
+                    return Err(yule_log::errors::ULogError::InvalidFieldName(
+                        format!(
+                            "Fields not found in subscription `{}`: {}",
+                            #subscription,
+                            missing.join(", ")
+                        )
+                    ));
+                } else {
+                    return Ok(result);
                 }
             }
         }
     };
 
+    
     let from_field_path: syn::Path = syn::parse_str("FromField").unwrap();
 
 
