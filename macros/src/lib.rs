@@ -180,6 +180,37 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
         }
     });
 
+
+    let ulog_names: Vec<_> = fields.iter().map(|f| {
+        let attr = LoggedFieldAttr::from_field(f).unwrap();
+        attr.field_name.unwrap_or_else(|| named_ident(f).to_string())
+    }).collect();
+
+    let idx_idents: Vec<_> = fields.iter().map(|f| idx_ident(f)).collect();
+
+
+    // Generate from_format fields.
+    let accessor_struct = {
+        quote! {
+            {
+                let map: std::collections::HashMap<String, usize> =
+                    format.fields.iter().enumerate()
+                        .map(|(i, f)| (f.name.clone(), i))
+                        .collect();
+
+                // Construct struct with `idx_ident: index` for each field
+                Self {
+                    #(
+                        #idx_idents: *map.get(#ulog_names)
+                            .ok_or_else(|| yule_log::errors::ULogError::InvalidFieldName(
+                                format!("Field `{}` not found in subscription `{}`", #ulog_names, #subscription)
+                            ))?
+                    ),*
+                }
+            }
+        }
+    };
+
     let from_field_path: syn::Path = syn::parse_str("FromField").unwrap();
 
 
@@ -214,9 +245,7 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
             pub(crate) fn from_format(format: &yule_log::model::def::Format)
                 -> Result<Self, yule_log::errors::ULogError>
             {
-                Ok(Self {
-                    #( #from_format_fields ),*
-                })
+                Ok(#accessor_struct)
             }
 
             pub fn get_data(&self, format: &yule_log::model::inst::Format)
