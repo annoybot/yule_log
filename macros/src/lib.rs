@@ -157,29 +157,6 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
         quote! { #idx_ident: usize }
     });
 
-    // Generate from_format fields.
-    let from_format_fields = fields.iter().map(|f| {
-        let attr = match LoggedFieldAttr::from_field(f) {
-            Ok(a) => a,
-            Err(e) => return e.write_errors().into(), // Propagate any errors at compile time.
-        };
-        let ulog_name = attr.field_name.unwrap_or_else(|| named_ident(f).to_string());
-        let idx_ident = idx_ident(f);
-
-        quote! {
-            #idx_ident: {
-                let (index, def_field) = format.fields.iter()
-                    .enumerate()
-                    .find(|(_, f)| f.name == #ulog_name)
-                    .ok_or_else(|| yule_log::errors::ULogError::InvalidFieldName(
-                        format!("Field `{}` not found in subscription `{}`", #ulog_name, #subscription)
-                    ))?;
-
-                index
-            }
-        }
-    });
-
 
     let ulog_names: Vec<_> = fields.iter().map(|f| {
         let attr = LoggedFieldAttr::from_field(f).unwrap();
@@ -253,16 +230,19 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
         #[doc = concat!("Subscription name: ", #subscription)]
         #[doc = "The subscription name is derived by lowerCamelCase of the struct name, unless overridden via #[yule_log(subscription_name=\"...\")]."]
         #[doc = "Optional #[yule_log(multi_id = N)] selects a multi-instance subscription."]
+        #[automatically_derived]
         impl #struct_name {
             const __YULE_LOG_SUBSCRIPTION: &'static str = #subscription;
             const __YULE_LOG_MULTI_ID: u8 = #multi_id;
         }
 
         #[doc = "Accessor type for efficiently retrieving fields from this message type."]
+        #[automatically_derived]
         pub struct #accessor_name {
             #( #index_fields ),*
         }
 
+        #[automatically_derived]
         impl #accessor_name {
             pub(crate) fn from_format(format: &yule_log::model::def::Format)
                 -> Result<Self, yule_log::errors::ULogError>
@@ -279,6 +259,7 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
             }
         }
 
+        #[automatically_derived]
         impl yule_log::macro_utils::ULogAccess for #struct_name {
             type Accessor = #accessor_name;
 
@@ -294,6 +275,7 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
         // --------------------------------------------------------------------
         
         // Single nested struct: ScalarOther
+        #[automatically_derived]
         impl #from_field_path for #struct_name {
             fn from_field(inst_field: &yule_log::model::inst::Field)
                 -> Result<Self, yule_log::errors::ULogError>
@@ -311,6 +293,7 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
         }
 
         // Array of structs: ArrayOther
+        #[automatically_derived]
         impl #from_field_path for ::std::vec::Vec<#struct_name> {
             fn from_field(field: &yule_log::model::inst::Field)
                 -> Result<Self, yule_log::errors::ULogError>
@@ -537,17 +520,20 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
     let expanded = quote! {
         #[doc = "Internal enum holding accessors for each variant."]
         #[allow(non_camel_case_types)]
+        #[automatically_derived]
         enum #accessor_enum_name {
             #( #accessor_enum_variants ),*
         }
 
         #[doc = "Internal iterator struct driving the ULog parser and dispatching messages."]
         #[allow(non_camel_case_types)]
+        #[automatically_derived]
         struct #hidden_struct_name<R: std::io::Read> {
             parser: yule_log::parser::ULogParser<R>,
             subs: std::collections::HashMap<u16, #accessor_enum_name>,
         }
 
+        #[automatically_derived]
         impl<R: std::io::Read> #hidden_struct_name<R> {
             fn new(reader: R) -> Result<Self, yule_log::errors::ULogError> {
                 let mut parser = yule_log::builder::ULogParserBuilder::new(reader)
@@ -566,6 +552,7 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
             }
         }
 
+        #[automatically_derived]
         impl<R: std::io::Read> Iterator for #hidden_struct_name<R> {
             type Item = Result<#enum_name, yule_log::errors::ULogError>;
 
@@ -600,7 +587,8 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
                 None
             }
         }
-
+        
+        #[automatically_derived]
         impl #enum_name {
             #[doc = "Returns an iterator over the selected ULOG messages from the reader."]
             pub fn stream<R: std::io::Read>(
@@ -616,7 +604,7 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
-pub fn preamble(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn yule_log_prelude(_attr: TokenStream, item: TokenStream) -> TokenStream {
     // Parse the annotated module
     let mut module = syn::parse_macro_input!(item as ItemMod);
 
@@ -640,6 +628,7 @@ pub fn preamble(_attr: TokenStream, item: TokenStream) -> TokenStream {
             let ty_ident = Ident::new(ty, proc_macro2::Span::call_site());
             let variant_ident = Ident::new(variant, proc_macro2::Span::call_site());
             quote! {
+                #[automatically_derived]
                 impl FromField for #ty_ident {
                     fn from_field(field: &yule_log::model::inst::Field) -> Result<Self, yule_log::errors::ULogError> {
                         match &field.value {
@@ -672,6 +661,7 @@ pub fn preamble(_attr: TokenStream, item: TokenStream) -> TokenStream {
             let ty_ident = Ident::new(ty, proc_macro2::Span::call_site());
             let variant_ident = Ident::new(variant, proc_macro2::Span::call_site());
             quote! {
+                #[automatically_derived]
                 impl FromField for Vec<#ty_ident> {
                     fn from_field(field: &yule_log::model::inst::Field) -> Result<Self, yule_log::errors::ULogError> {
                         match &field.value {
@@ -686,6 +676,7 @@ pub fn preamble(_attr: TokenStream, item: TokenStream) -> TokenStream {
         });
 
     let from_field_impls = quote! {
+        #[automatically_derived]
         pub trait FromField: Sized {
             fn from_field(field: &yule_log::model::inst::Field) -> Result<Self, yule_log::errors::ULogError>;
         }

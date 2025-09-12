@@ -2,9 +2,9 @@
 use yule_log::model::msg::UlogMessage;
 use std::fs::File;
 use std::io::BufReader;
-use yule_log_macros::preamble;
+use yule_log_macros::yule_log_prelude;
 
-#[preamble]
+#[yule_log_prelude]
 pub mod ulog {
     use yule_log_macros::{ULogData, ULogMessages};
     use yule_log::model::msg::UlogMessage;
