@@ -295,8 +295,8 @@ impl Encode for inst::FieldValue {
             ScalarBool(v) => writer.write_all(&[*v as u8]),
             ScalarChar(c) => writer.write_all(&[*c as u8]),
             ScalarOther(fmt) => {
-                for (_, val) in fmt.flatten() {
-                    val.encode(writer)?;
+                for sub_field in &fmt.fields {
+                    sub_field.encode(writer)?;
                 }
                 Ok(())
             }
@@ -370,8 +370,8 @@ impl Encode for inst::FieldValue {
             }
             ArrayOther(arr) => {
                 for fmt in arr {
-                    for (_, val) in fmt.flatten() {
-                        val.encode(writer)?;
+                    for sub_field in &fmt.fields {
+                        sub_field.encode(writer)?;
                     }
                 }
                 Ok(())
