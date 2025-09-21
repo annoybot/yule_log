@@ -26,7 +26,7 @@ impl Encode for UlogMessage {
 
                 let msg_size = content_buf.len() as u16;
                 writer.write_all(&msg_size.to_le_bytes())?;
-                writer.write(&[u8::from(other.message_type())])?;
+                writer.write_all(&[u8::from(other.message_type())])?;
                 writer.write_all(&content_buf)?;
                 Ok(())
             }
@@ -113,7 +113,7 @@ impl Encode for LoggedData {
 
 impl Encode for msg::Info {
     fn encode<W: Write>(&self, writer: &mut W) -> io::Result<()> {
-        let mut key_bytes: Vec<u8> = (&self.r#type).encode_to_vec()?;
+        let mut key_bytes: Vec<u8> = self.r#type.encode_to_vec()?;
         key_bytes.push(b' ');
         key_bytes.extend_from_slice(self.key.as_bytes());
 
@@ -130,7 +130,7 @@ impl Encode for msg::MultiInfo {
     fn encode<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_all(&[self.is_continued as u8])?;
 
-        let mut key_bytes: Vec<u8> = (&self.r#type).encode_to_vec()?;
+        let mut key_bytes: Vec<u8> = self.r#type.encode_to_vec()?;
         key_bytes.push(b' ');
         key_bytes.extend_from_slice(self.key.as_bytes());
 
@@ -145,7 +145,7 @@ impl Encode for msg::MultiInfo {
 
 impl Encode for msg::Parameter {
     fn encode<W: Write>(&self, writer: &mut W) -> io::Result<()> {
-        let mut key_bytes: Vec<u8> = (&self.r#type).encode_to_vec()?;
+        let mut key_bytes: Vec<u8> = self.r#type.encode_to_vec()?;
         key_bytes.push(b' ');
         key_bytes.extend_from_slice(self.key.as_bytes());
 
@@ -162,7 +162,7 @@ impl Encode for msg::DefaultParameter {
     fn encode<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_all(&[self.default_types])?;
 
-        let mut key_bytes: Vec<u8> = (&self.r#type).encode_to_vec()?;
+        let mut key_bytes: Vec<u8> = self.r#type.encode_to_vec()?;
         key_bytes.push(b' ');
         key_bytes.extend_from_slice(self.key.as_bytes());
 
@@ -210,11 +210,11 @@ impl Encode for msg::LogLevel {
 impl Encode for def::Format {
     fn encode<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         writer.write_all(self.name.as_bytes())?;
-        writer.write_all(&[b':'])?;
+        writer.write_all(b":")?;
 
         for field in &self.fields {
             field.encode(writer)?;
-            writer.write_all(&[b';'])?;
+            writer.write_all(b";")?;
         }
         Ok(())
     }
@@ -225,7 +225,7 @@ impl Encode for def::Format {
 impl Encode for def::Field {
     fn encode<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         self.r#type.encode(writer)?;
-        writer.write_all(&[b' '])?;
+        writer.write_all(b" ")?;
         writer.write_all(self.name.as_bytes())?;
         Ok(())
     }

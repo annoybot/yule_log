@@ -34,7 +34,7 @@
 
 use syn::spanned::Spanned;
 use proc_macro::TokenStream;
-use syn::{DeriveInput, Ident, ItemMod};
+use syn::{DeriveInput, Ident};
 use darling::FromDeriveInput;
 use darling::FromVariant;
 use darling::FromField;
@@ -407,7 +407,7 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
     let accessor_enum_variants: Result<Vec<_>, syn::Error> = filtered_variants
         .iter()
         .map(|(var, ty)| {
-            generate_accessor_name(&ty, ty.span())
+            generate_accessor_name(ty, ty.span())
                 .map(|accessor_ident| quote! { #var(#accessor_ident) })
         })
         .collect();

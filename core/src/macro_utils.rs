@@ -1,4 +1,3 @@
-use crate::{errors, model};
 use crate::model::inst;
 use crate::errors::ULogError;
 
@@ -114,7 +113,7 @@ where
             _ => {
                 Err(
                     ULogError::TypeMismatch(
-                        format!("expected array for field {}", field.name).into(),
+                        format!("expected array for field {}", field.name),
                     ),
                 )
             }
@@ -138,7 +137,7 @@ where
             _ => {
                 Err(
                     ULogError::TypeMismatch(
-                        format!("expected a nested struct for field {}", inst_field.name).into(),
+                        format!("expected a nested struct for field {}", inst_field.name),
                     ),
                 )
             }
