@@ -14,7 +14,7 @@ mod field_helpers;
 pub mod encode;
 
 #[cfg(feature = "macros")]
-pub use yule_log_macros::*;
+pub use yule_log_macros::{ULogData, ULogMessages};
 
 #[cfg(feature = "macros")]
 pub mod macro_utils;
