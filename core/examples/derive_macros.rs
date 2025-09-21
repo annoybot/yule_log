@@ -2,7 +2,7 @@
 use yule_log::model::msg::UlogMessage;
 use std::fs::File;
 use std::io::BufReader;
-use yule_log_macros::{ULogData, ULogMessages};
+use yule_log::{ULogData, ULogMessages};
 
 #[derive(ULogMessages)]
 pub enum LoggedMessages {

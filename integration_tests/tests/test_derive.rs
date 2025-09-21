@@ -1,8 +1,6 @@
-#![cfg(feature = "macros")]
-
 use std::fs::File;
 use std::io::BufReader;
-use yule_log_macros::{ULogData, ULogMessages};
+use yule_log::{ULogData, ULogMessages};
 use yule_log::model::msg::UlogMessage;
 
 #[derive(ULogMessages)]
