@@ -1,13 +1,20 @@
 # yule_log
-A streaming [ULOG](https://docs.px4.io/main/en/dev_log/ulog_file_format.html) parser written in rust.
 
-This parser is designed to be fast and efficient, and to be able to handle large ULOG files without loading them into memory all at once.
+A streaming [ULOG](https://docs.px4.io/main/en/dev_log/ulog_file_format.html) parser written in Rust.
+
+## Features
+
+- **Memory Efficient:** A stream-oriented design allows `yule_log` handle arbitrarily large files in real time without fully loading them into memory.
+- **Derive API:** Map LoggedData messages directly into your structs using the optional `macros` feature.
+- **Complete coverage:** Supports all ULog message types.
+- **Binary fidelity:** Can parse and re-emit a ULog file byte-for-byte identical to the original.
+- **Safe and robust:** Full Rust type safety with comprehensive error handling.
 
 ## 🌟Derive API
 
-This feature provides a serde-like experience, allowing ULOG data to be mapped directly into your own structs.
+The `macros` feature provides a serde-like experience, allowing ULOG data to be mapped directly into your own structs.
 
-💡 No need to manually track subscription names, msg_ids, or field indices, the macros handle all 
+With this feature, there is no need to manually track subscription names, msg_ids, or field indices, the macros handle all 
 of that for you automatically.  The stream-oriented nature of the underlying parser is fully preserved.
 
 ### User guide
@@ -39,7 +46,7 @@ Example:
 In most cases, no extra config is needed—just name your struct and fields to match the names used in the
 ULOG. Only include the fields you need. 
 
-The macros will infer the ULOG names by converting your struct and field names to lower snake case. 
+The macros will infer the ULOG names by converting your struct and field names to snake case. 
 
 ⚠️You can override the default mapping 
 if needed: `#[yule_log(subscription_name = "...", multi_id = N)]`.  By default, struct fields will be validated
