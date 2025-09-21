@@ -113,7 +113,8 @@ where
             _ => {
                 Err(
                     ULogError::TypeMismatch(
-                        format!("expected array for field {}", field.name),
+                        format!("expected array for field {}, but found {:?}",
+                                field.name, field.r#type),
                     ),
                 )
             }
@@ -127,9 +128,9 @@ where
     T::Accessor: ULogAccessor<Output = T>,
 {
     fn from_field(
-        inst_field: &inst::Field,
+        field: &inst::Field,
     ) -> Result<Self, ULogError> {
-        match &inst_field.value {
+        match &field.value {
             inst::FieldValue::ScalarOther(inst_format) => {
                 let accessor = T::from_format(&inst_format.def_format, )?;
                 accessor.get_data(inst_format)
@@ -137,7 +138,8 @@ where
             _ => {
                 Err(
                     ULogError::TypeMismatch(
-                        format!("expected a nested struct for field {}", inst_field.name),
+                        format!("expected a nested struct for field {}, but found {:?}",
+                                field.name, field.r#type),
                     ),
                 )
             }
