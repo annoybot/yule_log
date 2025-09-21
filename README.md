@@ -21,7 +21,7 @@ yule_log = { version="0.3.0", features = ["macros"] }
 #### 2. Map subscriptions to structs
 
 Define one struct for each ULOG subscription you want to map, 
-and annotate it with `#[derive(ULogData)]`.
+and annotate it with: `#[derive(ULogData)]`.
 
 Example:
 
@@ -36,15 +36,16 @@ Example:
 ```
 
 In most cases, no extra config is needed—just name your struct and fields to match the names used in the
-ULOG subscription. The macros will infer the ULOG names by converting your struct and
-field names to lower camel case. 
+ULOG. Only include the fields you need. 
+
+The macros will infer the ULOG names by converting your struct and field names to lower camel case. 
 
 ⚠️You can override the default mapping 
 if needed: `#[yule_log(subscription_name = "...", multi_id = N)]`. 
 
 #### 3. List all subscriptions in an enum
 
-Declare an enum where each variant wraps one of your ULogData structs, and annotate it with
+Declare an enum where each variant wraps one of your ULogData structs, and annotate it with:
 `#[derive(ULogMessages)]`.
 
 ```rust
