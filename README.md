@@ -32,6 +32,7 @@ Example:
   pub x: f32,
   pub y: f32,
   pub z: f32,
+  pub extra_field: Option<f32>,
  }
 ```
 
@@ -41,7 +42,9 @@ ULOG. Only include the fields you need.
 The macros will infer the ULOG names by converting your struct and field names to lower snake case. 
 
 ⚠️You can override the default mapping 
-if needed: `#[yule_log(subscription_name = "...", multi_id = N)]`. 
+if needed: `#[yule_log(subscription_name = "...", multi_id = N)]`.  By default, struct fields will be validated
+against the ULOG file, and any missing fields will cause an error.  This can be overriden by making a field an 
+`Option<T>`, as shown above for `extra_field`. 
 
 #### 3. List all subscriptions in an enum
 
