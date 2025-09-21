@@ -18,20 +18,9 @@ of that for you automatically.  The stream-oriented nature of the underlying par
 yule_log = { version="0.3.0", features = ["macros"] }
 ```
 
-#### 2. Provide a wrapper module
+#### 2. Map subscriptions to structs
 
-Define a wrapper module and annotate it with: `#[yule_log_prelude]`.
-
-```rust
-#[yule_log_prelude]
-pub mod ulog {
-    
-}
-```
-
-#### 3. Map subscriptions to structs
-
-Inside the module, define one struct for each ULOG subscription you want to map, 
+Define one struct for each ULOG subscription you want to map, 
 and annotate it with `#[derive(ULogData)]`.
 
 Example:
@@ -53,7 +42,7 @@ field names to lower camel case.
 ⚠️You can override the default mapping 
 if needed: `#[yule_log(subscription_name = "...", multi_id = N)]`. 
 
-#### 4. List all subscriptions in an enum
+#### 3. List all subscriptions in an enum
 
 Declare an enum where each variant wraps one of your ULogData structs, and annotate it with
 `#[derive(ULogMessages)]`.
@@ -75,7 +64,7 @@ This enum will then become your interface to the data.
   Other(yule_log::model::msg::UlogMessage),
 ```
 
-#### 5. Iterate through mapped messages
+#### 4. Iterate through mapped messages
 
 The derive macro will generate a `::stream()` method on your enum, allowing the 
 messages to be easily retrieved.
@@ -83,68 +72,62 @@ messages to be easily retrieved.
 Full example:
 
 ```rust
-use yule_log::model::msg::UlogMessage;
 use std::fs::File;
 use std::io::BufReader;
-use yule_log_macros::yule_log_prelude;
+use yule_log::model::msg::UlogMessage;
 
-#[yule_log_prelude]
-pub mod ulog {
- use yule_log_macros::{ULogData, ULogMessages};
- use yule_log::model::msg::UlogMessage;
+use yule_log::{ULogData, ULogMessages};
 
- #[derive(ULogMessages)]
- pub enum LoggedMessages {
-  VehicleLocalPosition(VehicleLocalPosition),
-  ActuatorOutputs(ActuatorOutputs),
-     
-  #[yule_log(forward_other)]
-  Other(yule_log::model::msg::UlogMessage),
- }
+#[derive(ULogMessages)]
+pub enum LoggedMessages {
+    VehicleLocalPosition(VehicleLocalPosition),
+    ActuatorOutputs(ActuatorOutputs),
 
- #[derive(ULogData)]
- pub struct VehicleLocalPosition {
-  pub timestamp: u64,
-  pub x: f32,
-  pub y: f32,
-  pub z: f32,
- }
-
- #[derive(ULogData)]
- #[yule_log(multi_id = 1)]
- pub struct ActuatorOutputs {
-  pub timestamp: u64,
-  pub output: Vec<f32>,
- }
+    #[yule_log(forward_other)]
+    Other(yule_log::model::msg::UlogMessage),
 }
 
+#[derive(ULogData)]
+pub struct VehicleLocalPosition {
+    pub timestamp: u64,
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+}
+
+#[derive(ULogData)]
+#[yule_log(multi_id = 1)]
+pub struct ActuatorOutputs {
+    pub timestamp: u64,
+    pub output: Vec<f32>,
+}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
- use crate::ulog::LoggedMessages;
- let reader = BufReader::new(File::open("sample.ulg")?);
+    let reader = BufReader::new(File::open("sample.ulg")?);
 
- let stream = LoggedMessages::stream(reader)?;
+    let stream = LoggedMessages::stream(reader)?;
 
- for msg_res in stream {
-  let msg = msg_res?;
+    for msg_res in stream {
+        let msg = msg_res?;
 
-  match msg {
-   LoggedMessages::VehicleLocalPosition(v) => {
-    println!("VehicleLocalPosition: {}: x={} y={} z={}", v.timestamp, v.x, v.y, v.z);
-   }
-   LoggedMessages::ActuatorOutputs(a) => {
-    println!("ActuatorOutputs: {}: {:?}", a.timestamp, a.output);
-   },
-   LoggedMessages::Other(msg) => {
-    if let UlogMessage::Info(info) = msg {
-     println!("INFO: {info}");
+        match msg {
+            LoggedMessages::VehicleLocalPosition(v) => {
+                println!("VehicleLocalPosition: {}: x={} y={} z={}", v.timestamp, v.x, v.y, v.z);
+            }
+            LoggedMessages::ActuatorOutputs(a) => {
+                println!("ActuatorOutputs: {}: {:?}", a.timestamp, a.output);
+            }
+            LoggedMessages::Other(msg) => {
+                if let UlogMessage::Info(info) = msg {
+                    println!("INFO: {info}");
+                }
+            }
+        }
     }
-   }
-  }
- }
 
- Ok(())
+    Ok(())
 }
+
 ```
 
 ## Low Level API
