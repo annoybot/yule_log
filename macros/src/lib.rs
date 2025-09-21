@@ -48,7 +48,7 @@ use quote::quote;
 #[derive(FromDeriveInput)]
 #[darling(attributes(yule_log))]
 struct LoggedStructAttr {
-    /// Optional subscription name override. Defaults to camelCase of struct name.
+    /// Optional subscription name override. Defaults to lower snake case of struct name.
     subscription_name: Option<String>,
     #[darling(default)]
     /// Optional multi_id for subscriptions with multiple instances.
@@ -68,7 +68,7 @@ struct LoggedFieldAttr {
 /// # Attributes
 ///
 /// * `#[yule_log(subscription_name = "...")]` – optional override for the subscription name.
-///   By default, the subscription name is derived from the struct name by converting it to lowerCamelCase.
+///   By default, the subscription name is derived from the struct name by converting it to lower snake case.
 ///
 /// * `#[yule_log(multi_id = N)]` – optional multi-instance ID. Defaults to `0` if not set.
 ///
@@ -229,7 +229,7 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
     let expanded = quote! {
         #[doc = "Represents the mapping of a ULOG LoggedDataMessage."]
         #[doc = concat!("Subscription name: ", #subscription)]
-        #[doc = "The subscription name is derived by lowerCamelCase of the struct name, unless overridden via #[yule_log(subscription_name=\"...\")]."]
+        #[doc = "The subscription name is derived by lower snake case of the struct name, unless overridden via #[yule_log(subscription_name=\"...\")]."]
         #[doc = "Optional #[yule_log(multi_id = N)] selects a multi-instance subscription."]
         #[automatically_derived]
         impl #struct_name {

@@ -38,7 +38,7 @@ Example:
 In most cases, no extra config is needed—just name your struct and fields to match the names used in the
 ULOG. Only include the fields you need. 
 
-The macros will infer the ULOG names by converting your struct and field names to lower camel case. 
+The macros will infer the ULOG names by converting your struct and field names to lower snake case. 
 
 ⚠️You can override the default mapping 
 if needed: `#[yule_log(subscription_name = "...", multi_id = N)]`. 
