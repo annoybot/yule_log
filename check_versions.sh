@@ -53,3 +53,4 @@ for v in "${versions[@]:1}"; do
 done
 
 echo "All versions match: $first"
+exit 0
