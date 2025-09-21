@@ -211,6 +211,7 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
 
     
     let from_field_path: syn::Path = syn::parse_str("FromField").unwrap();
+    //let ulog_access_trait_path: syn::Path = syn::parse_str("ULogAccess").unwrap();
 
 
     // Generate get_data fields using FromField trait
@@ -244,23 +245,14 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
 
         #[automatically_derived]
         impl #accessor_name {
-            pub(crate) fn from_format(format: &yule_log::model::def::Format)
-                -> Result<Self, yule_log::errors::ULogError>
-            {
-                Ok(#accessor_struct)
-            }
-
-            pub fn get_data(&self, format: &yule_log::model::inst::Format)
-                -> Result<#struct_name, yule_log::errors::ULogError>
-            {
-                Ok(#struct_name {
-                    #( #get_data_fields ),*
-                })
+            pub(crate) fn from_format(format: &yule_log::model::def::Format) -> Result<Self, yule_log::errors::ULogError> {
+                #accessor_struct
             }
         }
 
+
         #[automatically_derived]
-        impl yule_log::macro_utils::ULogAccess for #struct_name {
+        impl yule_log::macro_utils::ULogAccessorFactory for #struct_name {
             type Accessor = #accessor_name;
 
             fn from_format(format: &yule_log::model::def::Format)
@@ -269,58 +261,22 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
                 #accessor_name::from_format(format)
             }
         }
-        
-        // --------------------------------------------------------------------
-        // Implement FromField for nested structs and arrays of nested structs.
-        // --------------------------------------------------------------------
-        
-        // Single nested struct: ScalarOther
+
         #[automatically_derived]
-        impl #from_field_path for #struct_name {
-            fn from_field(inst_field: &yule_log::model::inst::Field)
-                -> Result<Self, yule_log::errors::ULogError>
+        impl yule_log::macro_utils::ULogAccessor for #accessor_name {
+            type Output = #struct_name;
+
+            fn get_data(&self, format: &yule_log::model::inst::Format)
+                -> Result<Self::Output, yule_log::errors::ULogError>
             {
-                match &inst_field.value {
-                    yule_log::model::inst::FieldValue::ScalarOther(inst_format) => {
-                        let accessor = #accessor_name::from_format(&inst_format.def_format)?;
-                        accessor.get_data(inst_format)
-                    }
-                    _ => Err(yule_log::errors::ULogError::TypeMismatch(
-                        concat!("expected nested struct for ", stringify!(#struct_name)).into()
-                    )),
-                }
+                use ::yule_log::macro_utils::FromField;
+
+                Ok(#struct_name {
+                    #( #get_data_fields ),*
+                })
             }
         }
 
-        // Array of structs: ArrayOther
-        #[automatically_derived]
-        impl #from_field_path for ::std::vec::Vec<#struct_name> {
-            fn from_field(field: &yule_log::model::inst::Field)
-                -> Result<Self, yule_log::errors::ULogError>
-            {
-                match &field.value {
-                    yule_log::model::inst::FieldValue::ArrayOther(formats) => {
-                        if formats.is_empty() {
-                            return Ok( ::std::vec::Vec::new() );
-                        }
-                    
-                        let mut results = ::std::vec::Vec::with_capacity(formats.len());
-                    
-                        // The user must define a struct mapped to this format, which will make 
-                        // All elements have the same type per the ULOG spec. So we only need to create the accessor once based on the first
-                        let accessor = #accessor_name::from_format(&formats[0].def_format)?;
-                    
-                        for f in formats {
-                            results.push(accessor.get_data(f)?);
-                        }
-                        Ok( results )
-                    }
-                    _ => Err(yule_log::errors::ULogError::TypeMismatch(
-                        concat!("expected array of nested structs for ", stringify!(#struct_name)).into()
-                    )),
-                }
-            }
-        }
     };
 
     expanded.into()
@@ -472,7 +428,7 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
                         Err(e) => return Some(Err(yule_log::errors::ULogError::from(e))),
                     };
 
-                    let acc = match <#ty as yule_log::macro_utils::ULogAccess>::from_format(&format) {
+                    let acc = match <#ty as yule_log::macro_utils::ULogAccessorFactory>::from_format(&format) {
                         Ok(a) => a,
                         Err(e) => return Some(Err(e)),
                     };
@@ -557,7 +513,9 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
             type Item = Result<#enum_name, yule_log::errors::ULogError>;
 
             fn next(&mut self) -> Option<Self::Item> {
-                use yule_log::model::msg::UlogMessage;
+                use ::yule_log::macro_utils::ULogAccessorFactory;
+                use ::yule_log::model::msg::UlogMessage;
+                use ::yule_log::macro_utils::ULogAccessor;
 
                 while let Some(msg_res) = self.parser.next() {
                     let msg = match msg_res {
@@ -601,102 +559,4 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
     };
 
     expanded.into()
-}
-
-#[proc_macro_attribute]
-pub fn yule_log_prelude(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    // Parse the annotated module
-    let mut module = syn::parse_macro_input!(item as ItemMod);
-
-    // Implement FromField for scalar and array types
-    let scalar_impls = [
-        ("u8", "ScalarU8"),
-        ("u16", "ScalarU16"),
-        ("u32", "ScalarU32"),
-        ("u64", "ScalarU64"),
-        ("i8", "ScalarI8"),
-        ("i16", "ScalarI16"),
-        ("i32", "ScalarI32"),
-        ("i64", "ScalarI64"),
-        ("f32", "ScalarF32"),
-        ("f64", "ScalarF64"),
-        ("bool", "ScalarBool"),
-        ("char", "ScalarChar"),
-    ]
-        .iter()
-        .map(|(ty, variant)| {
-            let ty_ident = Ident::new(ty, proc_macro2::Span::call_site());
-            let variant_ident = Ident::new(variant, proc_macro2::Span::call_site());
-            quote! {
-                #[automatically_derived]
-                impl FromField for #ty_ident {
-                    fn from_field(field: &yule_log::model::inst::Field) -> Result<Self, yule_log::errors::ULogError> {
-                        match &field.value {
-                            yule_log::model::inst::FieldValue::#variant_ident(v) => Ok(*v),
-                            other => Err(yule_log::errors::ULogError::InternalError(format!(
-                                "Expected {} but got {:?}", stringify!(#ty_ident), other
-                            ))),
-                        }
-                    }
-                }
-            }
-        });
-
-    let array_impls = [
-        ("u8", "ArrayU8"),
-        ("u16", "ArrayU16"),
-        ("u32", "ArrayU32"),
-        ("u64", "ArrayU64"),
-        ("i8", "ArrayI8"),
-        ("i16", "ArrayI16"),
-        ("i32", "ArrayI32"),
-        ("i64", "ArrayI64"),
-        ("f32", "ArrayF32"),
-        ("f64", "ArrayF64"),
-        ("bool", "ArrayBool"),
-        ("char", "ArrayChar"),
-    ]
-        .iter()
-        .map(|(ty, variant)| {
-            let ty_ident = Ident::new(ty, proc_macro2::Span::call_site());
-            let variant_ident = Ident::new(variant, proc_macro2::Span::call_site());
-            quote! {
-                #[automatically_derived]
-                impl FromField for Vec<#ty_ident> {
-                    fn from_field(field: &yule_log::model::inst::Field) -> Result<Self, yule_log::errors::ULogError> {
-                        match &field.value {
-                            yule_log::model::inst::FieldValue::#variant_ident(v) => Ok(v.clone()),
-                            other => Err(yule_log::errors::ULogError::InternalError(format!(
-                                "Expected Vec<{}> but got {:?}", stringify!(#ty_ident), other
-                            ))),
-                        }
-                    }
-                }
-            }
-        });
-
-    let from_field_impls = quote! {
-        #[automatically_derived]
-        pub trait FromField: Sized {
-            fn from_field(field: &yule_log::model::inst::Field) -> Result<Self, yule_log::errors::ULogError>;
-        }
-
-        #(#scalar_impls)*
-        #(#array_impls)*
-    };
-
-    // Inject trait into the module body
-    if let Some((_, items)) = &mut module.content {
-        items.push(syn::Item::Verbatim(from_field_impls));
-    } else {
-        return syn::Error::new_spanned(
-            &module,
-            "#[ulog_preamble] requires an inline `mod { ... }`"
-        )
-            .to_compile_error()
-            .into();
-    }
-
-    // Return the modified module
-    TokenStream::from(quote!(#module))
 }

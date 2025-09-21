@@ -2,9 +2,7 @@
 
 use std::fs::File;
 use std::io::BufReader;
-use yule_log_macros::yule_log_prelude;
 
-#[yule_log_prelude]
 pub mod ulog {
     use yule_log::model::msg::UlogMessage;
     use yule_log_macros::{ULogData, ULogMessages};
