@@ -53,7 +53,7 @@ pub struct TelemetryHeartbeat {
 
 
 #[test]
-fn integration_macros_nested() -> Result<(), Box<dyn std::error::Error>> {
+fn test_derive_nested() -> Result<(), Box<dyn std::error::Error>> {
     use LoggedMessages;
     
     // Integration tests run from the workspace root, so prefix with `core/`
