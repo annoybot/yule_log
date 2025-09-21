@@ -16,7 +16,12 @@ pub struct VehicleLocalPosition {
     timestamp: u64,
     x: f32,
     y: f32,
-    z: f32,
+
+    // Test handling of an Optional field which is present in the ULOG file.
+    z: Option<f32>,
+
+    // Test handling of an optional field which is not present in the ULOG file.
+    not_there: Option<u64>,
 }
 
 #[derive(ULogData, Debug, PartialEq, Clone)]
@@ -64,19 +69,22 @@ fn test_derive() -> Result<(), Box<dyn std::error::Error>> {
             timestamp: 20321827,
             x: 0.0,
             y: 0.0,
-            z: -1.167656,
+            z: Some(-1.167656),
+            not_there: None,
         },
         VehicleLocalPosition {
             timestamp: 20483131,
             x: 0.0,
             y: 0.0,
-            z: -1.1788101,
+            z: Some(-1.1788101),
+            not_there: None,
         },
         VehicleLocalPosition {
             timestamp: 20492907,
             x: 0.0,
             y: 0.0,
-            z: -1.1792563,
+            z: Some(-1.1792563),
+            not_there: None,
         },
     ];
 

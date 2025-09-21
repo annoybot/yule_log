@@ -32,15 +32,17 @@
 //! }
 //! ```
 
+mod utils;
+
 use syn::spanned::Spanned;
 use proc_macro::TokenStream;
-use syn::{DeriveInput, Ident};
+use syn::{DeriveInput, Ident, Type};
 use darling::FromDeriveInput;
 use darling::FromVariant;
 use darling::FromField;
 use heck::ToSnakeCase;
 use quote::quote;
-
+use crate::utils::{extract_option_type, is_option_type, make_index_type};
 //
 // --------------------------- Struct Derive ---------------------------
 //
@@ -150,80 +152,115 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
         let name = named_ident(f);
         Ident::new(&format!("{}_index", name), name.span())
     }
+
+    fn idx_type(f: &syn::Field) -> Type {
+        // If the user type is an Option<T>, will generate Option<usize>
+        // otherwise usize.
+        make_index_type(f)
+    }
     
-    // Generate index fields to hold the index of the field in the LoggedData message, for efficient lookup.
+    // Generate index_fields to hold the index of the field in the LoggedData message, for efficient lookup.
     let index_fields = fields.iter().map(|f| {
         let idx_ident = idx_ident(f);
-        quote! { #idx_ident: usize }
+        let idx_type = idx_type(f);
+        quote! { #idx_ident: #idx_type }
     });
 
-
-    let ulog_names: Vec<_> = fields.iter().map(|f| {
-        let attr = LoggedFieldAttr::from_field(f).unwrap();
-        attr.field_name.unwrap_or_else(|| named_ident(f).to_string())
-    }).collect();
-
-    let idx_idents: Vec<_> = fields.iter().map(|f| idx_ident(f)).collect();
-
-    // Generate accessor struct from the fields
     let accessor_struct = {
-        quote! {
-            {
-                // Build a runtime map from ULOG format field name -> index for efficient lookup.
-                let map: std::collections::HashMap<String, usize> =
-                    format.fields.iter().enumerate()
-                        .map(|(i, f)| (f.name.clone(), i))
-                        .collect();
-        
-                // Vector to collect names of any fields not found in the map.
-                let mut missing = Vec::new();
-        
-                // Construct the struct.  If any fields are missing, they will be recorded in `missing`.
-                let result = Self {
-                    #(
-                        #idx_idents: {
-                            match map.get(#ulog_names) {
-                                Some(&idx) => idx,             // Field found, record its index.
-                                None => {
-                                    missing.push(#ulog_names); // Field not found, add name to `missing` for error reporting later.
-                                    0                          // Placeholder index. This is safe because we will error out below.
-                                }
-                            }
-                        }
-                    ),*
-                };
-        
-                // Check whether any fields were missing. If so return an error.
-                if !missing.is_empty() {
-                    return Err(yule_log::errors::ULogError::InvalidFieldName(
-                        format!(
-                            "Fields not found in subscription `{}`: {}",
-                            #subscription,
-                            missing.join(", ")
-                        )
-                    ));
-                } else {
-                    return Ok(result);
+        let idx_field_exprs = fields.iter().map(|f| {
+            let idx_ident = idx_ident(f);
+            let ulog_name = {
+                // This unwrap is safe because LoggedFieldAttr has the `Default` attribute applied.
+                let attr = LoggedFieldAttr::from_field(f).unwrap();
+                attr.field_name.unwrap_or_else(|| named_ident(f).to_string())
+            };
+
+            if is_option_type(&make_index_type(f)) {
+                quote! {
+                    // If not found store index value as None, otherwise Some(usize).
+                    #idx_ident: map.get(#ulog_name).copied()
+                }
+            } else {
+                quote! {
+                #idx_ident: match map.get(#ulog_name) {
+                    Some(&idx) => idx,
+                    None => {
+                        // If not found add to missing list to report an error later.
+                        // Index is set to 0, but will never be used.
+                        missing.push(#ulog_name);
+                        0
+                    }
                 }
             }
+            }
+        });
+
+        quote! {
+        {
+            let map: std::collections::HashMap<String, usize> =
+                format.fields.iter().enumerate()
+                    .map(|(i, f)| (f.name.clone(), i))
+                    .collect();
+
+            let mut missing = Vec::new();
+
+            let result = Self {
+                #( #idx_field_exprs ),*
+            };
+
+            if !missing.is_empty() {
+                return Err(yule_log::errors::ULogError::InvalidFieldName(
+                    format!(
+                        "Fields not found in subscription `{}`: {}",
+                        #subscription,
+                        missing.join(", ")
+                    )
+                ));
+            } else {
+                return Ok(result);
+            }
         }
+    }
     };
 
-    
     let from_field_path: syn::Path = syn::parse_str("FromField").unwrap();
-    //let ulog_access_trait_path: syn::Path = syn::parse_str("ULogAccess").unwrap();
 
-
-    // Generate get_data fields using FromField trait
+    // Generate get_data fields using the FromField trait.
+    //
+    // Assumptions:
+    //
+    // - For any field `f` of type `Option<T>`, the corresponding index field `self.#idx_ident` is `Option<usize>`,
+    //   indicating whether the field is present in the ULog format (None means the field is not present).
+    // - For any non-optional field `f`, the corresponding index field is `usize` and guaranteed to be present.
+    //
+    // This invariant is established earlier when generating index fields and validated by construction of the Accessor struct.
+    // Therefore, it is safe to unwrap and index into `format.fields` accordingly.
+    //
+    // The generated code uses this to:
+    // - Return `None` directly when the index is `None` (field missing),
+    // - Or call `FromField` on the inner type if present,
+    // - Or call `FromField` on the full type for non-optional fields.
     let get_data_fields = 
         fields.iter().map(|f| {
             let name = named_ident(f);
             let idx_ident = idx_ident(f);
             let ty = &f.ty;
-        
-        quote! {
-            #name: <#ty as #from_field_path>::from_field(&format.fields[self.#idx_ident])?
-        }
+
+            if is_option_type(ty) {
+                // This unwrap() is safe because we just confirmed it's an Option.
+                let inner_ty = extract_option_type(ty).expect("Expected Option inner type.");
+
+                quote! {
+                    #name: match self.#idx_ident {
+                        None => None,
+                        Some(idx) => Some(<#inner_ty as #from_field_path>::from_field(&format.fields[idx])?)
+                    }
+                }
+            } else {
+                quote! {
+                    #name: <#ty as #from_field_path>::from_field(&format.fields[self.#idx_ident])?
+                }
+            }
     });
 
     let expanded = quote! {
