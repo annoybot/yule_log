@@ -91,16 +91,16 @@ impl_fromfield_array!(bool, ArrayBool);
 impl_fromfield_array!(char, ArrayChar);
 
 
-impl<T> FromField for ::std::vec::Vec<T>
+impl<T> FromField for Vec<T>
 where
     T: ULogAccessorFactory,
     T::Accessor: ULogAccessor<Output = T>,
 {
     fn from_field(
-        field: &model::inst::Field,
-    ) -> Result<Self, errors::ULogError> {
+        field: &inst::Field,
+    ) -> Result<Self, ULogError> {
         match &field.value {
-            model::inst::FieldValue::ArrayOther(formats) => {
+            inst::FieldValue::ArrayOther(formats) => {
                 if formats.is_empty() {
                     return Ok(::std::vec::Vec::new());
                 }
@@ -113,9 +113,8 @@ where
             }
             _ => {
                 Err(
-                    errors::ULogError::TypeMismatch(
-                        "expected array of nested structs for VehicleLocalPosition"
-                            .into(),
+                    ULogError::TypeMismatch(
+                        format!("expected array for field {}", field.name).into(),
                     ),
                 )
             }
@@ -139,7 +138,7 @@ where
             _ => {
                 Err(
                     ULogError::TypeMismatch(
-                        "expected nested struct for VehicleLocalPosition".into(),
+                        format!("expected a nested struct for field {}", inst_field.name).into(),
                     ),
                 )
             }
