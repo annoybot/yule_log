@@ -211,7 +211,7 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
             if !missing.is_empty() {
                 return Err(yule_log::errors::ULogError::InvalidFieldName(
                     format!(
-                        "Fields not found in subscription `{}`: {}",
+                        "The following fields were not found in subscription `{}`: {}",
                         #subscription,
                         missing.join(", ")
                     )

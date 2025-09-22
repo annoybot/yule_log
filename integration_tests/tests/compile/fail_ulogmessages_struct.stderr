@@ -1,0 +1,5 @@
+error: ULogMessages derive only works on enums.
+ --> tests/compile/fail_ulogmessages_struct.rs:4:12
+  |
+4 | pub struct NotAnEnum {
+  |            ^^^^^^^^^

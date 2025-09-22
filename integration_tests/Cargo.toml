@@ -8,3 +8,4 @@ publish = false
 
 [dev-dependencies]
 yule_log = { path = "../core", features = ["macros"], default-features = false }
+trybuild = "1.0"

@@ -1,0 +1,5 @@
+error: Enum variants must be tuple variants containing exactly one struct type.
+ --> tests/compile/fail_ulogmessages_forward_other.rs:8:5
+  |
+8 |     A(A, A),
+  |     ^^^^^^^

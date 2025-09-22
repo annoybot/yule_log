@@ -1,0 +1,14 @@
+error: ULogMessages derive cannot be used with generic enums or where clauses.
+ --> tests/compile/fail_ulogmessages_generic.rs:9:10
+  |
+9 | pub enum LoggedMessages<T> {
+  |          ^^^^^^^^^^^^^^
+
+error[E0392]: type parameter `T` is never used
+ --> tests/compile/fail_ulogmessages_generic.rs:9:25
+  |
+9 | pub enum LoggedMessages<T> {
+  |                         ^ unused type parameter
+  |
+  = help: consider removing `T`, referring to it in a field, or using a marker such as `PhantomData`
+  = help: if you intended `T` to be a const parameter, use `const T: /* Type */` instead
