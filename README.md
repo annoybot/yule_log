@@ -123,10 +123,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         match msg {
             LoggedMessages::VehicleLocalPosition(v) => {
-                println!("VehicleLocalPosition: {}: x={} y={} z={}", v.timestamp, v.x, v.y, v.z);
+                println!("VehicleLocalPosition: {}: x={} y={} z={}",
+                         v.timestamp, v.x, v.y, v.z);
             }
             LoggedMessages::ActuatorOutputs(a) => {
-                println!("ActuatorOutputs: {}: {:?}", a.timestamp, a.output);
+                println!("ActuatorOutputs: {}: {:?}", 
+                         a.timestamp, a.output);
             }
             LoggedMessages::Other(msg) => {
                 if let UlogMessage::Info(info) = msg {
