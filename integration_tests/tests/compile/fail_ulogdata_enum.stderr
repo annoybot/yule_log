@@ -1,0 +1,5 @@
+error: ULogData derive on structs only
+ --> tests/compile/fail_ulogdata_enum.rs:4:10
+  |
+4 | pub enum NotAStruct {
+  |          ^^^^^^^^^^

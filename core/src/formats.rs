@@ -107,7 +107,6 @@ impl def::BaseType {
 
 #[cfg(test)]
 mod tests {
-    use log::LevelFilter;
     use crate::encode::Encode;
     use super::*;
 
@@ -154,8 +153,6 @@ mod tests {
 
     #[test]
     fn test_round_trip_format() {
-        env_logger::builder().filter_level(LevelFilter::Trace).init();
-
         let input = b"my_format:uint64_t timestamp;custom_type custom_field;bool is_happy;custom_type2[4] custom_field;uint8_t[8] pet_ids;";
         let message_buf = MessageBuf::from_vec(input.to_vec());
         

@@ -234,6 +234,7 @@ pub mod def {
 /// are instances of the type definitions described by `def::Format` and `def::Field`.
 pub mod inst {
     use crate::model::def::TypeExpr;
+    use crate::model::{def, inst};
 
     #[derive(Debug, Clone, PartialEq)]
     pub struct Format {
@@ -241,6 +242,7 @@ pub mod inst {
         pub name: String,
         pub fields: Vec<Field>,
         pub multi_id_index: Option<u8>,
+        pub def_format: def::Format,
     }
 
     #[derive(Debug, Clone, PartialEq)]
@@ -270,7 +272,7 @@ pub mod inst {
         ScalarF64(f64),
         ScalarBool(bool),
         ScalarChar(char),
-        ScalarOther(Format),
+        ScalarOther(inst::Format),
 
         // Typed arrays
         ArrayU8(Vec<u8>),
@@ -285,7 +287,7 @@ pub mod inst {
         ArrayF64(Vec<f64>),
         ArrayBool(Vec<bool>),
         ArrayChar(Vec<char>),
-        ArrayOther(Vec<Format>),
+        ArrayOther(Vec<inst::Format>),
     }
 }
 

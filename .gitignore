@@ -5,3 +5,4 @@ Docs
 Cargo.lock
 outer.ulg
 square_flight.ulg
+create_compile_tests.py

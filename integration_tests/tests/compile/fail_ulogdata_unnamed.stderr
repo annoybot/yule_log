@@ -1,0 +1,5 @@
+error: ULogData requires named struct fields.
+ --> tests/compile/fail_ulogdata_unnamed.rs:4:24
+  |
+4 | pub struct TupleStruct(u64, f32);
+  |                        ^^^

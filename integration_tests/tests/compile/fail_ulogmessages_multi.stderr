@@ -1,0 +1,6 @@
+error: Only one variant may have #[yule_log(forward_other)].
+  --> tests/compile/fail_ulogmessages_multi.rs:12:5
+   |
+12 | /     #[yule_log(forward_other)]
+13 | |     B(B),
+   | |________^

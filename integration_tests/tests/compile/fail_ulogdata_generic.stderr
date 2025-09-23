@@ -1,0 +1,5 @@
+error: ULogData derive cannot be used with generic structs or where clauses.
+ --> tests/compile/fail_ulogdata_generic.rs:4:12
+  |
+4 | pub struct GenericStruct<T> {
+  |            ^^^^^^^^^^^^^

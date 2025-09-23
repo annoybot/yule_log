@@ -151,6 +151,11 @@ impl<R: Read> ULogParser<R> {
 
                 match msg {
                     UlogMessage::FormatDefinition(ref format) => {
+                        
+                        if format.name.contains("heartbeat") {
+                            println!("Heartbeat {}", format);
+                        }
+                        
                         self.formats.insert(format.name.clone(), format.clone());
                     }
                     UlogMessage::AddSubscription(ref sub) => {
@@ -418,6 +423,7 @@ impl<R: Read> ULogParser<R> {
             // It can be filled out only after we've seen all the subscriptions in the file.
             // We have omitted it here so it can be filled later on if required.
             multi_id_index: None,
+            def_format: format.clone(),
         })
     }
 

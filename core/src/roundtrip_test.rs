@@ -1,10 +1,9 @@
 #[cfg(test)]
 mod tests {
     use std::env;
-    use std::error::Error;
     use std::fs;
     use std::fs::File;
-    use std::io::{self, BufReader, Read, Write};
+    use std::io::{self, BufReader, Read};
     use std::path::{Path, PathBuf};
     use crate::builder::ULogParserBuilder;
     use crate::encode::Encode;
