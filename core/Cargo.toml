@@ -6,7 +6,7 @@ keywords = ["parser", "ulog", "px4"]
 readme = "../README.md"
 license = "MIT"
 repository = "https://github.com/annoybot/yule_log"
-version = "0.2.2"
+version = "0.3.0"
 edition = "2021"
 publish = true
 
@@ -19,11 +19,11 @@ regex = "1.11.1"
 lazy_static = "1.5.0"
 serde = { version = "1.0", features = ["derive"] }
 
-yule_log_macros = { version = "=0.2.2", path = "../macros", optional = true }
+yule_log_macros = { version = "=0.3.0", path = "../macros", optional = true }
 
 # Enforce version lock between yule_log and yule_log_macros
 [target.'cfg(any())'.dependencies]
-yule_log_macros = { version = "=0.2.2", path = "../macros", optional = true}
+yule_log_macros = { version = "=0.3.0", path = "../macros", optional = true}
 
 [features]
 default = []
