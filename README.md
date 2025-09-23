@@ -22,7 +22,7 @@ of that for you automatically.  The stream-oriented nature of the underlying par
 #### 1. Enable the feature in Cargo.toml
 
 ```toml
-yule_log = { version="0.3.0", features = ["macros"] }
+yule_log = { version="0.3", features = ["macros"] }
 ```
 
 #### 2. Map subscriptions to structs
