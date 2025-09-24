@@ -77,14 +77,14 @@ struct LoggedFieldAttr {
 /// Each field can also use an optional attribute:
 ///
 /// * `#[yule_log(field_name = "...")]` – override the field name used in the ULOG message.
-///   Defaults to the struct field name.
+///   Defaults to the struct field name, converted to snake case.
 ///
 /// # Example
 ///
 /// ```ignore
 /// #[derive(ULogData)]
-/// #[yule_log(subscription_name = "vehicleLocalPosition")]
-/// pub struct VehicleLocalPosition {
+/// #[yule_log(subscription_name = "vehicle_local_position")]
+/// pub struct LocalPosition {
 ///     timestamp: u64,
 ///     x: f32,
 ///     y: f32,

@@ -48,10 +48,11 @@ ULOG. Only include the fields you need.
 
 The macros will infer the ULOG names by converting your struct and field names to snake case. 
 
-⚠️You can override the default mapping 
-if needed: `#[yule_log(subscription_name = "...", multi_id = N)]`.  By default, struct fields will be validated
-against the ULOG file, and any missing fields will cause an error.  This can be overriden by making a field an 
-`Option<T>`, as shown above for `extra_field`. 
+By default, struct fields will be validated
+against the ULOG file, and any missing fields will cause an error.  This can be overriden by making a field an `Option<T>`, as shown above for `extra_field`.
+
+⚠️Subscription and field names can also be specified using the `#[yule_log]` attribute.  For
+more information refer to the [ULogData API docs](https://docs.rs/yule_log/0.3/yule_log/derive.ULogData.html).
 
 #### 3. List all subscriptions in an enum
 
@@ -68,7 +69,7 @@ Declare an enum where each variant wraps one of your ULogData structs, and annot
 
 This enum will then become your interface to the data.
 
-⚠️ Raw ULOG messages can be captured by annotating an enum variant as follows:
+⚠️ Raw ULOG messages can also be captured by annotating an enum variant as follows:
 
 ```rust
   #[yule_log(forward_other)]
