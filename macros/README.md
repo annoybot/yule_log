@@ -1,6 +1,6 @@
 # yule_log_macros
 
-Derive macros for the [yule_log](https://crates.io/crates/yule_log] ULOG) ULOG parser.
+Derive macros for the [yule_log](https://crates.io/crates/yule_log) ULOG parser.
 
 ## Features
 
@@ -14,12 +14,12 @@ Derive macros for the [yule_log](https://crates.io/crates/yule_log] ULOG) ULOG p
 
 ## Quickstart
 
-For more information, see: [yule_log](https://crates.io/crates/yule_log] ULOG).
+For more information, see: [yule_log](https://crates.io/crates/yule_log).
 
 ### Cargo.toml
 
 ```toml
-yule_log = { version = "0.3.0", features = ["macros"] }
+yule_log = { version = "0.3", features = ["macros"] }
 ```
 
 ### Define mappings
