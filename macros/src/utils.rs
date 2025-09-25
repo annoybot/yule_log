@@ -70,7 +70,7 @@ pub fn make_index_type(field: &Field) -> Type {
 pub fn extract_option_type(ty: &Type) -> Option<&Type> {
     if let Type::Path(TypePath { path, .. }) = ty {
         if let Some(PathSegment { ident, arguments }) = path.segments.last() {
-            if ident.to_string() == "Option" {
+            if *ident == "Option" {
                 if let PathArguments::AngleBracketed(ref args) = arguments {
                     if let Some(GenericArgument::Type(inner_ty)) = args.args.first() {
                         return Some(inner_ty);

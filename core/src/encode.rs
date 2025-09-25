@@ -49,7 +49,7 @@ impl UlogMessage {
             UlogMessage::LoggedString(_) => ULogMessageType::LOGGING,
             UlogMessage::TaggedLoggedString(_) => ULogMessageType::LOGGING_TAGGED,
             UlogMessage::DropoutMark(_) => ULogMessageType::DROPOUT,
-            UlogMessage::Unhandled { msg_type, .. } => ULogMessageType::from(*msg_type),
+            UlogMessage::Unhandled { msg_type, .. } | 
             UlogMessage::Ignored { msg_type, .. } => ULogMessageType::from(*msg_type),
             UlogMessage::Header(_) => unreachable!("Handled separately"),
         }
@@ -66,10 +66,10 @@ impl UlogMessage {
             UlogMessage::MultiInfo(info) => info.encode(writer),
             UlogMessage::Parameter(param) => param.encode(writer),
             UlogMessage::DefaultParameter(param) => param.encode(writer),
-            UlogMessage::LoggedString(logged_string) => logged_string.encode(writer),
+            UlogMessage::LoggedString(logged_string) | 
             UlogMessage::TaggedLoggedString(logged_string) => logged_string.encode(writer),
             UlogMessage::DropoutMark(dropout) => dropout.encode(writer),
-            UlogMessage::Unhandled { message_contents, .. } => writer.write_all(message_contents),
+            UlogMessage::Unhandled { message_contents, .. } | 
             UlogMessage::Ignored { message_contents, .. } => writer.write_all(message_contents),
             UlogMessage::Header(_) => unreachable!("Handled separately"),
         }

@@ -9,7 +9,7 @@ pub(crate) fn parse_format(message_buf: MessageBuf) -> Result<def::Format, ULogE
     let str_format = String::from_utf8(message_buf.into_remaining_bytes())?;
 
     let mut token_list = TokenList::from_str(&str_format);
-    log::trace!("token_list: {:?}", token_list);
+    log::trace!("token_list: {token_list:?}");
 
     let name = match token_list.consume_two()? {
         (Token::Identifier(str), Token::Colon) => str,
@@ -30,7 +30,7 @@ pub(crate) fn parse_format(message_buf: MessageBuf) -> Result<def::Format, ULogE
             token => { Err(ULogError::ParseError(format!(
                 "Invalid format definition. Expected a Semicolon, got: {token:?}"
             )))?; }
-        };
+        }
     }
 
     Ok(def::Format {
@@ -42,7 +42,7 @@ pub(crate) fn parse_format(message_buf: MessageBuf) -> Result<def::Format, ULogE
 
 pub(crate) fn parse_field(token_list: &mut TokenList) -> Result<def::Field, ULogError>
 {
-    log::trace!("token_list: {:?}", token_list);
+    log::trace!("token_list: {token_list:?}");
 
     let base_type = match token_list.consume_one()? {
         Token::Identifier(type_name) => { def::BaseType::from_string(type_name) }

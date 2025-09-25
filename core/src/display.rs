@@ -20,7 +20,7 @@ impl std::fmt::Display for inst::FieldValue {
             FieldValue::ScalarF64(v) => write!(f, "{v}"),
             FieldValue::ScalarBool(v) => write!(f, "{v}"),
             FieldValue::ScalarChar(c) => write!(f, "'{c}'"),
-            FieldValue::ScalarOther(fmt) => write!(f, "{{{}}}", fmt),
+            FieldValue::ScalarOther(fmt) => write!(f, "{{{fmt}}}"),
 
             // Arrays
             FieldValue::ArrayU8(arr) => Ok(fmt_array(arr, f)?),
@@ -41,7 +41,7 @@ impl std::fmt::Display for inst::FieldValue {
             }
 
             FieldValue::ArrayOther(arr) => {
-                let formatted: Vec<String> = arr.iter().map(|f| format!("{{{}}}", f)).collect();
+                let formatted: Vec<String> = arr.iter().map(|f| format!("{{{f}}}")).collect();
                 write!(f, "[{}]", formatted.join(", "))
             }
         }
@@ -50,8 +50,8 @@ impl std::fmt::Display for inst::FieldValue {
 
 // helper for formatting arrays
 fn fmt_array<T: fmt::Display>(arr: &[T], f: &mut Formatter<'_>) -> fmt::Result {
-    let s = arr.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(", ");
-    write!(f, "[{}]", s)
+    let s = arr.iter().map(std::string::ToString::to_string).collect::<Vec<_>>().join(", ");
+    write!(f, "[{s}]")
 }
 
 
@@ -106,9 +106,9 @@ impl fmt::Display for msg::Info {
             FieldValue::ScalarU16(val) => write!(f, "{val}")?,
             FieldValue::ScalarU32(val) => {
                 if self.key.starts_with("ver_") && self.key.ends_with("_release") {
-                    write!(f, "{val:#X}")?
+                    write!(f, "{val:#X}")?;
                 } else {
-                    write!(f, "{val}")?
+                    write!(f, "{val}")?;
                 }
             }
             FieldValue::ScalarU64(val) => write!(f, "{val}")?,
@@ -120,7 +120,7 @@ impl fmt::Display for msg::Info {
             FieldValue::ScalarF64(val) => write!(f, "{val}")?,
             FieldValue::ScalarBool(val) => write!(f, "{val}")?,
             FieldValue::ScalarChar(ch) => write!(f, "{ch}")?,
-            FieldValue::ScalarOther(fmt) => write!(f, "{{{}}}", fmt)?,
+            FieldValue::ScalarOther(fmt) => write!(f, "{{{fmt}}}")?,
 
             // Arrays
             FieldValue::ArrayU8(arr) => fmt_array(arr, f)?,
@@ -137,12 +137,12 @@ impl fmt::Display for msg::Info {
 
             FieldValue::ArrayChar(arr) => {
                 let s: String = arr.iter().collect();
-                write!(f, "\"{s}\"")?
+                write!(f, "\"{s}\"")?;
             }
 
             FieldValue::ArrayOther(arr) => {
-                let formatted: Vec<String> = arr.iter().map(|fmt| format!("{{{}}}", fmt)).collect();
-                write!(f, "[{}]", formatted.join(", "))?
+                let formatted: Vec<String> = arr.iter().map(|fmt| format!("{{{fmt}}}")).collect();
+                write!(f, "[{}]", formatted.join(", "))?;
             }
         }
 
@@ -161,9 +161,9 @@ impl fmt::Display for msg::MultiInfo {
             FieldValue::ScalarU16(val) => write!(f, "{val}")?,
             FieldValue::ScalarU32(val) => {
                 if self.key.starts_with("ver_") && self.key.ends_with("_release") {
-                    write!(f, "{val:#X}")?
+                    write!(f, "{val:#X}")?;
                 } else {
-                    write!(f, "{val}")?
+                    write!(f, "{val}")?;
                 }
             }
             FieldValue::ScalarU64(val) => write!(f, "{val}")?,
@@ -175,7 +175,7 @@ impl fmt::Display for msg::MultiInfo {
             FieldValue::ScalarF64(val) => write!(f, "{val}")?,
             FieldValue::ScalarBool(val) => write!(f, "{val}")?,
             FieldValue::ScalarChar(ch) => write!(f, "{ch}")?,
-            FieldValue::ScalarOther(fmt) => write!(f, "{{{}}}", fmt)?,
+            FieldValue::ScalarOther(fmt) => write!(f, "{{{fmt}}}")?,
 
             // Arrays
             FieldValue::ArrayU8(arr) => fmt_array(arr, f)?,
@@ -192,12 +192,12 @@ impl fmt::Display for msg::MultiInfo {
 
             FieldValue::ArrayChar(arr) => {
                 let s: String = arr.iter().collect();
-                write!(f, "\"{s}\"")?
+                write!(f, "\"{s}\"")?;
             }
 
             FieldValue::ArrayOther(arr) => {
-                let formatted: Vec<String> = arr.iter().map(|fmt| format!("{{{}}}", fmt)).collect();
-                write!(f, "[{}]", formatted.join(", "))?
+                let formatted: Vec<String> = arr.iter().map(|fmt| format!("{{{fmt}}}")).collect();
+                write!(f, "[{}]", formatted.join(", "))?;
             }
         }
 

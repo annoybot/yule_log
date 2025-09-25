@@ -53,7 +53,7 @@ struct LoggedStructAttr {
     /// Optional subscription name override. Defaults to lower snake case of struct name.
     subscription_name: Option<String>,
     #[darling(default)]
-    /// Optional multi_id for subscriptions with multiple instances.
+    /// Optional `multi_id` for subscriptions with multiple instances.
     multi_id: Option<u8>,
 }
 
@@ -65,7 +65,7 @@ struct LoggedFieldAttr {
     field_name: Option<String>,
 }
 
-/// Derive `ULogData` for a struct representing a ULOG LoggedDataMessage.
+/// Derive `ULogData` for a struct representing a ULOG `LoggedDataMessage`.
 ///
 /// # Attributes
 ///
@@ -141,7 +141,7 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
         .unwrap_or_else(|| struct_name.to_string().to_snake_case());
     let multi_id = attr.multi_id.unwrap_or(0);
 
-    let accessor_name = Ident::new(&format!("{}Accessor", struct_name), struct_name.span());
+    let accessor_name = Ident::new(&format!("{struct_name}Accessor"), struct_name.span());
 
     fn named_ident(f: &syn::Field) -> &syn::Ident {
         #[allow(clippy::unwrap_used)] // Safe by invariant: all fields are named. See guard code above.
@@ -150,7 +150,7 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
 
     fn idx_ident(f: &syn::Field) -> Ident {
         let name = named_ident(f);
-        Ident::new(&format!("{}_index", name), name.span())
+        Ident::new(&format!("{name}_index"), name.span())
     }
 
     fn idx_type(f: &syn::Field) -> Type {
@@ -332,7 +332,7 @@ struct LoggedVariantAttr {
     forward_other: bool,
 }
 
-/// Derive `ULogMessages` for an enum wrapping ULogData structs.
+/// Derive `ULogMessages` for an enum wrapping `ULogData` structs.
 ///
 /// This enum acts as the dispatcher for all ULOG message types.
 /// It generates an internal iterator over the messages from a ULOG reader.
@@ -418,12 +418,12 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
         .collect();
 
     let accessor_enum_name = Ident::new(
-        &format!("__yule_log_derive_{}Accessor", enum_name),
+        &format!("__yule_log_derive_{enum_name}Accessor"),
         enum_name.span(),
     );
 
     let hidden_struct_name = Ident::new(
-        &format!("__yule_log_derive_{}", enum_name),
+        &format!("__yule_log_derive_{enum_name}"),
         enum_name.span(),
     );
 
@@ -433,7 +433,7 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
         if let syn::Type::Path(type_path) = ty {
             #[allow(clippy::unwrap_used)] // Safe: syn::Type::Path always has at least one segment for a valid Rust struct type.
             let ident = &type_path.path.segments.last().unwrap().ident;
-            let name = format!("{}Accessor", ident);
+            let name = format!("{ident}Accessor");
             Ok(Ident::new(&name, span))
         } else {
             Err(syn::Error::new(span, "Enum variants must be tuple variants containing exactly one struct type."))

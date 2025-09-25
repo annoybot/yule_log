@@ -119,7 +119,7 @@ impl<R: Read> ULogParser<R> {
                     return Err(ULogError::InvalidHeader);
                 }
             }
-        };
+        }
         
         if self.state == State::EOF {
             return Ok(None);
@@ -153,7 +153,7 @@ impl<R: Read> ULogParser<R> {
                     UlogMessage::FormatDefinition(ref format) => {
                         
                         if format.name.contains("heartbeat") {
-                            println!("Heartbeat {}", format);
+                            println!("Heartbeat {format}");
                         }
                         
                         self.formats.insert(format.name.clone(), format.clone());
@@ -190,7 +190,7 @@ impl<R: Read> ULogParser<R> {
                             self.include_padding);
                     }
                     _ =>  {}
-                };
+                }
 
 
                 return Ok(Some(msg));
@@ -316,7 +316,7 @@ impl<R: Read> ULogParser<R> {
         }
 
         let msg_type = ULogMessageType::from(self.datastream.read_u8()?);
-        log::trace!("MSG HEADER: {} {:?}", msg_size, msg_type);
+        log::trace!("MSG HEADER: {msg_size} {msg_type:?}");
 
         Ok(Some(ULogMessageHeader { msg_size, msg_type }))
     }
@@ -549,7 +549,7 @@ impl<R: Read> ULogParser<R> {
             }
              */
             ULogMessageType::UNKNOWN(byte) => {
-                log::warn!("Unknown message type: 0x{:02X}", byte);
+                log::warn!("Unknown message type: 0x{byte:02X}");
                 Ok(UlogMessage::Unhandled { msg_type: message_type.into(), message_contents: message_buf.into_remaining_bytes() })
             }
             _ => {
@@ -614,7 +614,7 @@ impl<R: Read> ULogParser<R> {
         let value:inst::FieldValue = self.parse_field_value(&field, &mut message_buf)?;
 
         log::debug!("MULTI_INFO {:?} {}:\t{}", field.r#type, &field.name, value);
-        log::debug!("is_continued = {}", is_continued);
+        log::debug!("is_continued = {is_continued}");
 
         let result: MultiInfo =
             MultiInfo {
