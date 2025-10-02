@@ -58,4 +58,7 @@ pub enum ULogError {
 
     #[error("Invalid LoggedData field name: {0}")]
     InvalidFieldName(String),
+
+    #[error("Invalid parser configuration: {0}")]
+    InvalidConfiguration(String),
 }

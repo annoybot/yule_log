@@ -141,7 +141,43 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
+```
 
+## 🔧 Builder Interface for Advanced Configuration
+
+By default, the `::stream()` method only yields messages mapped to enum variants; 
+`LoggedData` and `AddSubscription` messages are handled internally and not visible
+to the caller.
+
+To override this default behaviour, the derive macro also generates a `::builder()` API for
+your `LoggedMessages` enum, allowing you to:
+
+- Forward `LoggedData` messages not mapped to an enum variant.
+- Forward `AddSubscription` messages.
+
+### Example Usage
+
+```rust
+let stream = LoggedMessages::builder(reader)
+    .add_subscription("vehicle_gps_position".to_string())?
+    .forward_subscriptions(true)?
+    .stream()?;
+
+for msg_res in stream {
+    let msg = msg_res?;
+    match msg {
+        LoggedMessages::VehicleLocalPosition(v) => {
+            println!("VehicleLocalPosition: {}: x={} y={} z={}", v.timestamp, v.x, v.y, v.z);
+        }
+        LoggedMessages::Other(UlogMessage::AddSubscription(sub)) => {
+            println!("AddSubscription message: {:?}", sub);
+        }
+        LoggedMessages::Other(UlogMessage::LoggedData(data)) => {
+            println!("Extra LoggedData message: {:?}", data);
+        }
+        _ => {}
+    }
+}
 ```
 
 ## Low Level API
@@ -151,39 +187,37 @@ For those requiring complete control over the parsing process, the original low 
 Example:
 
 ```rust
-    let reader = BufReader::new(File::open(ulog_path.clone())?);
+let reader = BufReader::new(File::open(ulog_path.clone())?);
 
-    let parser = ULogParserBuilder::new(reader)
-        .include_header(true)
-        .include_timestamp(true)
-        .include_padding(true)
-        .build()?;
+let parser = ULogParserBuilder::new(reader)
+    .include_header(true)
+    .include_timestamp(true)
+    .include_padding(true)
+    .build()?;
 
-    for result in parser {
-        let ulog_message = result?;
+for result in parser {
+    let ulog_message = result?;
 
-        match ulog_message {
-            UlogMessage::Header(header) => println!("HEADER: {header:?}"),
-            UlogMessage::FlagBits(flag_bits) => println!("FLAG_BITS: {flag_bits:?}"),
-            UlogMessage::Info(info) => println!("INFO: {info}"),
-            UlogMessage::MultiInfo(multi_info) => println!("MULTI INFO: {multi_info}"),
-            UlogMessage::FormatDefinition(format) => println!("FORMAT_DEFINITION: {format:?}"),
-            UlogMessage::Parameter(param) => println!("PARAM: {param}"),
-            UlogMessage::DefaultParameter(param) => println!("PARAM DEFAULT: {param}"),
-            UlogMessage::LoggedData(data) => println!("LOGGED_DATA: {data:?}"),
-            UlogMessage::AddSubscription(sub) => println!("SUBSCRIPTION: {sub:?}"),
-            UlogMessage::LoggedString(log) => println!("LOGGED_STRING: {log}"),
-            UlogMessage::TaggedLoggedString(log) => println!("TAGGED_LOGGED_STRING: {log}"),
-            UlogMessage::Unhandled { msg_type, .. } => println!("Unhandled msg type: {}", msg_type as char),
-            UlogMessage::Ignored { msg_type, .. } => println!("Ignored msg type:  {}", msg_type as char),
-        }
+    match ulog_message {
+        UlogMessage::Header(header) => println!("HEADER: {header:?}"),
+        UlogMessage::FlagBits(flag_bits) => println!("FLAG_BITS: {flag_bits:?}"),
+        UlogMessage::Info(info) => println!("INFO: {info}"),
+        UlogMessage::MultiInfo(multi_info) => println!("MULTI INFO: {multi_info}"),
+        UlogMessage::FormatDefinition(format) => println!("FORMAT_DEFINITION: {format:?}"),
+        UlogMessage::Parameter(param) => println!("PARAM: {param}"),
+        UlogMessage::DefaultParameter(param) => println!("PARAM DEFAULT: {param}"),
+        UlogMessage::LoggedData(data) => println!("LOGGED_DATA: {data:?}"),
+        UlogMessage::AddSubscription(sub) => println!("SUBSCRIPTION: {sub:?}"),
+        UlogMessage::LoggedString(log) => println!("LOGGED_STRING: {log}"),
+        UlogMessage::TaggedLoggedString(log) => println!("TAGGED_LOGGED_STRING: {log}"),
+        UlogMessage::Unhandled { msg_type, .. } => println!("Unhandled msg type: {}", msg_type as char),
+        UlogMessage::Ignored { msg_type, .. } => println!("Ignored msg type:  {}", msg_type as char),
     }
+}
 ```
 
 This example is also available in the `examples` directory as `simple.rs`.
 
-
 ## License
 
 This project is licensed under the [MIT Licence](LICENCE).
-
