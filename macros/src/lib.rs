@@ -240,14 +240,14 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
     // - Return `None` directly when the index is `None` (field missing),
     // - Or call `FromField` on the inner type if present,
     // - Or call `FromField` on the full type for non-optional fields.
-    let get_data_fields = 
+    let get_data_fields =
         fields.iter().map(|f| {
             let name = named_ident(f);
             let idx_ident = idx_ident(f);
             let ty = &f.ty;
 
             if is_option_type(ty) {
-                // This unwrap() is safe because we just confirmed it's an Option.
+                // This unwrap is safe because we just confirmed it's an Option.
                 let inner_ty = extract_option_type(ty).expect("Expected Option inner type.");
 
                 quote! {
@@ -261,7 +261,7 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
                     #name: <#ty as #from_field_path>::from_field(&format.fields[self.#idx_ident])?
                 }
             }
-    });
+        });
 
     let expanded = quote! {
         #[doc = "Represents the mapping of a ULOG LoggedDataMessage."]
@@ -427,6 +427,11 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
         enum_name.span(),
     );
 
+    let builder_struct_name = Ident::new(
+        &format!("__yule_log_derive_{enum_name}Builder"),
+        enum_name.span(),
+    );
+
     /// Generate an accessor name for an enum variant wrapping a single struct.
     /// Fails at compile time if the type is not a simple struct path.
     fn generate_accessor_name(ty: &syn::Type, span: proc_macro2::Span) -> Result<Ident, syn::Error> {
@@ -508,7 +513,26 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
         }
     };
 
-
+    let has_forward_other = forward_other_variant_ident.is_some();
+    
+    let extra_logged_msg_conditional = match has_forward_other {
+        true => quote! {
+            else {
+                return Some(Ok(LoggedMessages::Other(UlogMessage::LoggedData(data))));
+            }
+        },
+        false => quote! {},
+    };
+    
+    let extra_subscription_forwarder = match has_forward_other {
+        true => quote! {
+            // forward unhandled subscription messages when the user requested them.
+            if self.forward_subscriptions {
+                return Some(Ok(LoggedMessages::Other(UlogMessage::AddSubscription(sub))));
+            }
+        },
+        false => quote! {},
+    };
 
     let expanded = quote! {
         #[doc = "Internal enum holding accessors for each variant."]
@@ -518,12 +542,70 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
             #( #accessor_enum_variants ),*
         }
 
+        #[doc = "Builder struct for configuring the iterator."]
+        #[allow(non_camel_case_types)]
+        #[derive(Debug)]
+        #[automatically_derived]
+        struct #builder_struct_name<R: std::io::Read> {
+            reader: R,
+            extra_allow_list: Vec<String>,
+            forward_subscriptions: bool,
+        }
+        
+        impl<R: std::io::Read> #builder_struct_name<R> {
+            pub const HAS_FORWARD_OTHER: bool = #has_forward_other;
+            
+            pub fn new(reader: R) -> Self {
+                Self {
+                    reader,
+                    extra_allow_list: Vec::new(),
+                    forward_subscriptions: false,
+                }
+            }
+            
+            #[allow(dead_code)]
+            pub fn add_subscription(mut self, name: String) -> Result<Self, yule_log::errors::ULogError> {
+                if !Self::HAS_FORWARD_OTHER {
+                    return Err(yule_log::errors::ULogError::InvalidConfiguration(
+                        "Cannot add extra subscriptions because there is no #[yule_log(forward_other)] variant configured to receive them.".to_string()
+                    ));
+                }
+                self.extra_allow_list.push(name);
+                Ok(self)
+            }
+            
+            #[allow(dead_code)]
+            pub fn forward_subscriptions(mut self, value: bool) -> Result<Self, yule_log::errors::ULogError> {
+                match value {
+                    true => {
+                        if !Self::HAS_FORWARD_OTHER {
+                            return Err(yule_log::errors::ULogError::InvalidConfiguration(
+                                "Cannot forward subscriptions messages because there is no #[yule_log(forward_other)] variant configured to receive them.".to_string()
+                            ));
+                        }
+                        self.forward_subscriptions = true;
+                    }
+                    false => {}
+                }
+                
+                Ok(self)
+            }
+            
+            pub fn stream(self) -> Result<#hidden_struct_name<R>, yule_log::errors::ULogError> {
+                let mut result = #hidden_struct_name::new(self.reader)?;
+                result.extend_allow_list(self.extra_allow_list);
+                result.forward_subscriptions(self.forward_subscriptions);
+                Ok( result )
+            }
+        }
+        
         #[doc = "Internal iterator struct driving the ULog parser and dispatching messages."]
         #[allow(non_camel_case_types)]
         #[automatically_derived]
         struct #hidden_struct_name<R: std::io::Read> {
             parser: yule_log::parser::ULogParser<R>,
             subs: std::collections::HashMap<u16, #accessor_enum_name>,
+            forward_subscriptions: bool,
         }
 
         #[automatically_derived]
@@ -541,7 +623,18 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
 
                 parser.set_subscription_allow_list(allowed_subs);
 
-                Ok(Self { parser, subs: std::collections::HashMap::new() })
+                Ok(Self { parser, subs: std::collections::HashMap::new(), forward_subscriptions: false })
+            }
+            
+            fn extend_allow_list(&mut self, extra_allow_list: Vec<String>) {
+                let mut allow: std::collections::HashSet<String> =
+                    [ #( #subscription_idents.to_string() ),* ].into_iter().collect();
+                allow.extend(extra_allow_list.iter().cloned());
+                self.parser.set_subscription_allow_list(allow);
+            }
+            
+            pub fn forward_subscriptions(&mut self, value: bool)  {
+                self.forward_subscriptions = value;
             }
         }
 
@@ -564,7 +657,9 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
                         UlogMessage::AddSubscription(sub) => {
                             match (sub.message_name.as_str(), sub.multi_id) {
                                 #( #add_subscription_arms )*
-                                _ => {}
+                                _ => {
+                                    #extra_subscription_forwarder
+                                }
                             }
                             // Continue looping; don't yield yet
                         }
@@ -573,7 +668,8 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
                                 return Some(match acc {
                                     #( #logged_data_arms ),*
                                 });
-                            }
+                            } 
+                            #extra_logged_msg_conditional
                         }
                         #forward_other_arm
                     }
@@ -591,6 +687,11 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
             ) -> Result<impl Iterator<Item = Result<Self, yule_log::errors::ULogError>>, yule_log::errors::ULogError>
             {
                 #hidden_struct_name::new(reader)
+            }
+
+            #[doc = "Returns a builder that allows the iterator to be customised."]
+            pub fn builder<R: std::io::Read>(reader: R) -> #builder_struct_name<R> {
+                #builder_struct_name::new(reader)
             }
         }
     };

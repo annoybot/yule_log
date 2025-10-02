@@ -45,3 +45,92 @@ fn test_nonexistent_field_error()  {
     assert!(matches!(result, Err(ULogError::InvalidFieldName(_))));
 
 }
+
+#[test]
+fn test_not_added_subscription_absent() {
+
+    #[derive(ULogMessages)]
+    #[allow(dead_code)]
+    pub enum LoggedMessages {
+        VehicleLocalPosition(VehicleLocalPosition),
+        #[yule_log(forward_other)]
+        Other(UlogMessage),
+    }
+
+    #[derive(ULogData, Debug, PartialEq, Clone)]
+    pub struct VehicleLocalPosition {
+        timestamp: u64,
+        x: f32,
+        y: f32,
+        z: f32,
+    }
+
+    let reader = BufReader::new(
+        File::open("../core/test_data/input/sample_log_small.ulg").expect("Unable to open file")
+    );
+
+    let stream = LoggedMessages::stream(reader).unwrap();
+
+    // "vehicle_gps_position" should never appear because we haven't added it using `add_subscription()`.
+    for msg_res in stream {
+        if let Ok(LoggedMessages::Other(UlogMessage::LoggedData(data))) = msg_res {
+            assert_ne!(data.data.name, "vehicle_gps_position",
+                       "vehicle_gps_position should not appear.");
+        }
+    }
+}
+
+#[test]
+fn test_non_existent_variant_add_subscription() {
+    #[derive(ULogMessages)]
+    #[allow(dead_code)]
+    pub enum LoggedMessages {
+        VehicleLocalPosition(VehicleLocalPosition),
+    }
+
+    #[derive(ULogData, Debug, PartialEq, Clone)]
+    pub struct VehicleLocalPosition {
+        timestamp: u64,
+        x: f32,
+        y: f32,
+        z: f32,
+    }
+
+    let reader = BufReader::new(
+        File::open("../core/test_data/input/sample_log_small.ulg").expect("Unable to open file")
+    );
+
+    const EXTRA_SUBSCR_NAME: &'static str = "vehicle_gps_position";
+
+    let result = LoggedMessages::builder(reader)
+        .add_subscription(EXTRA_SUBSCR_NAME.to_string());
+    
+    println!("{:?}", result);
+    assert!(matches!(result, Err(ULogError::InvalidConfiguration(_))));
+}
+
+#[test]
+fn test_nonexistent_variant_fwd_subscription() {
+    #[derive(ULogMessages)]
+    #[allow(dead_code)]
+    pub enum LoggedMessages {
+        VehicleLocalPosition(VehicleLocalPosition),
+    }
+
+    #[derive(ULogData, Debug, PartialEq, Clone)]
+    pub struct VehicleLocalPosition {
+        timestamp: u64,
+        x: f32,
+        y: f32,
+        z: f32,
+    }
+
+    let reader = BufReader::new(
+        File::open("../core/test_data/input/sample_log_small.ulg").expect("Unable to open file")
+    );
+    let result = LoggedMessages::builder(reader)
+        .forward_subscriptions(true);
+
+    println!("{:?}", result);
+    assert!(matches!(result, Err(ULogError::InvalidConfiguration(_))));
+}
