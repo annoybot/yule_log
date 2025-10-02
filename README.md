@@ -145,22 +145,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 🔧 Builder Interface for Advanced Configuration
 
-The derive macro also generates a builder API for your `ULogMessages` enum, allowing more control over
-which messages are streamed. 
+By default, the `::stream()` method only yields messages mapped to enum variants; 
+`LoggedData` and `AddSubscription` messages are handled internally and not visible
+to the caller.
 
-### Features
+To override this default behaviour, the derive macro also generates a `::builder()` API for
+your `LoggedMessages` enum, allowing you to:
 
-- Forward `LoggedData` messages that do not have a mapped enum variant.
+- Forward `LoggedData` messages not mapped to an enum variant.
 - Forward `AddSubscription` messages.
-- Both require the presence of an `Other(...)` variant annotated with `#[yule_log(forward_other)]`.
 
 ### Example Usage
 
 ```rust
 let stream = LoggedMessages::builder(reader)
-    .add_subscription("vehicle_gps_position".to_string())? // Add an unmmapped subscription.
-    .forward_subscriptions(true)?                          // Request AddSubscription messages.
-    .stream()?;                                            // Create the iterator.
+    .add_subscription("vehicle_gps_position".to_string())?
+    .forward_subscriptions(true)?
+    .stream()?;
 
 for msg_res in stream {
     let msg = msg_res?;
@@ -217,8 +218,6 @@ for result in parser {
 
 This example is also available in the `examples` directory as `simple.rs`.
 
-
 ## License
 
 This project is licensed under the [MIT Licence](LICENCE).
-
