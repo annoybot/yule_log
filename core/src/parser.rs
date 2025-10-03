@@ -25,12 +25,12 @@ pub struct ULogParser<R: Read> {
     pub formats: HashMap<String, def::Format>,
     subscriptions: HashMap<u16, msg::Subscription>,
     message_name_with_multi_id: HashSet<String>,
-    allowed_subscription_names: Option<HashSet<String>>,
+    pub(crate) allowed_subscription_names: Option<HashSet<String>>,
     datastream: DataStream<R>,
     max_bytes_to_read: Option<usize>,
-    pub include_header: bool,
-    pub include_timestamp: bool,
-    pub include_padding: bool,
+    pub(crate) include_header: bool,
+    pub(crate) include_timestamp: bool,
+    pub(crate) include_padding: bool,
     _phantom: PhantomData<R>,
 }
 
@@ -75,6 +75,10 @@ impl<R: Read> ULogParser<R> {
         })
     }
     
+
+    /// Deprecated. Use `ULogParserBuilder::set_subscription_allow_list()` instead.
+    /// This will be removed or made private in a future release.
+    #[deprecated]
     pub fn set_subscription_allow_list(&mut self, set: HashSet<String>) {
         self.allowed_subscription_names = Some(set);
     }

@@ -103,8 +103,35 @@ fn test_non_existent_variant_add_subscription() {
     const EXTRA_SUBSCR_NAME: &'static str = "vehicle_gps_position";
 
     let result = LoggedMessages::builder(reader)
-        .add_subscription(EXTRA_SUBSCR_NAME.to_string());
+        .add_subscription(EXTRA_SUBSCR_NAME);
     
+    println!("{:?}", result);
+    assert!(matches!(result, Err(ULogError::InvalidConfiguration(_))));
+}
+
+#[test]
+fn test_non_existent_variant_extend_subscriptions() {
+    #[derive(ULogMessages)]
+    #[allow(dead_code)]
+    pub enum LoggedMessages {
+        VehicleLocalPosition(VehicleLocalPosition),
+    }
+
+    #[derive(ULogData, Debug, PartialEq, Clone)]
+    pub struct VehicleLocalPosition {
+        timestamp: u64,
+        x: f32,
+        y: f32,
+        z: f32,
+    }
+
+    let reader = BufReader::new(
+        File::open("../core/test_data/input/sample_log_small.ulg").expect("Unable to open file")
+    );
+
+    let result = LoggedMessages::builder(reader)
+        .extend_subscriptions(["vehicle_gps_position", "vehicle_attitude"]);
+
     println!("{:?}", result);
     assert!(matches!(result, Err(ULogError::InvalidConfiguration(_))));
 }

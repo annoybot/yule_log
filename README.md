@@ -145,7 +145,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 🔧 Builder Interface for Advanced Configuration
 
-By default, the `::stream()` method only yields messages mapped to enum variants; 
+By default, the `::stream()` method configures the parser to only yield messages that are mapped to enum variants; 
 `LoggedData` and `AddSubscription` messages are handled internally and not visible
 to the caller.
 
@@ -155,13 +155,18 @@ your `LoggedMessages` enum, allowing you to:
 - Forward `LoggedData` messages not mapped to an enum variant.
 - Forward `AddSubscription` messages.
 
+💡It is recommended to only map the `LoggedData` messages you need, as this avoids 
+parsing of unmapped messages which improves performance. The `add_subscription()` builder 
+feature below provides this functionality and is analogous to the
+`ULogParserBuilder::set_subscription_allow_list()`.
+
 ### Example Usage
 
 ```rust
 let stream = LoggedMessages::builder(reader)
-    .add_subscription("vehicle_gps_position".to_string())?
-    .forward_subscriptions(true)?
-    .stream()?;
+    .add_subscription("vehicle_gps_position")? // Add extra subscription
+    .forward_subscriptions(true)?              // Forward AddSubscription messages
+    .stream()?;                                // Create the iterator
 
 for msg_res in stream {
     let msg = msg_res?;

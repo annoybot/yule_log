@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::io::Read;
 
 use crate::errors::ULogError;
@@ -8,6 +9,7 @@ pub struct ULogParserBuilder<R> {
     include_header: bool,
     include_timestamp: bool,
     include_padding: bool,
+    allowed_subscription_names: Option<HashSet<String>>,
 }
 
 impl<R: Read> ULogParserBuilder<R> {
@@ -19,6 +21,7 @@ impl<R: Read> ULogParserBuilder<R> {
             include_header: false,
             include_timestamp: false,
             include_padding: false,
+            allowed_subscription_names: None,
         }
     }
 
@@ -40,6 +43,28 @@ impl<R: Read> ULogParserBuilder<R> {
         self
     }
 
+    /// Sets the list of `LoggedData` messages that the parser will return.
+    ///
+    /// By default, all `LoggedData` messages will be returned, which incurs extra parsing cost. 
+    /// 
+    /// Specifying only the required messages in this allow list can greatly improve parser performance.
+    ///
+    /// Any `LoggedData` messages not included in this allow list will be emitted as raw bytes in a 
+    /// `UlogMessage::Ignored` variant, so no messages are lost.
+    ///
+    /// # Parameters
+    /// - `subs`: An iterable collection of string-like items representing the names of `LoggedData` messages
+    ///           to be parsed fully and returned.
+    #[must_use]
+    pub fn set_subscription_allow_list<I, S>(&mut self, subs: I)
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        let set: HashSet<String> = subs.into_iter().map(|s| s.into()).collect();
+        self.allowed_subscription_names = Some(set);
+    }
+
     // Final method to build the `ULogParser`
     pub fn build(self) -> Result<ULogParser<R>, ULogError> {
         let result = ULogParser::new(self.reader);
@@ -49,8 +74,8 @@ impl<R: Read> ULogParserBuilder<R> {
                 parser.include_header = self.include_header;
                 parser.include_timestamp = self.include_timestamp;
                 parser.include_padding = self.include_padding;
-
-                Ok(parser)
+                parser.allowed_subscription_names = self.allowed_subscription_names;
+            Ok(parser)
             }
             Err(err) => { Err(err) }
         }

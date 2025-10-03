@@ -141,7 +141,7 @@ fn test_add_subscription() -> Result<(), Box<dyn std::error::Error>> {
     const EXTRA_SUBSCR_NAME: &'static str = "vehicle_gps_position";
 
     let stream = LoggedMessages::builder(reader)
-        .add_subscription(EXTRA_SUBSCR_NAME.to_string())?
+        .add_subscription(EXTRA_SUBSCR_NAME)?
         .stream()
         .unwrap();
 
@@ -235,6 +235,81 @@ fn test_fwd_subscriptions() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
+fn test_extend_subscriptions() -> Result<(), Box<dyn std::error::Error>> {
+    #[derive(ULogMessages)]
+    pub enum LoggedMessages {
+        VehicleLocalPosition(VehicleLocalPosition),
+
+        #[yule_log(forward_other)]
+        Other(UlogMessage),
+    }
+
+    #[derive(ULogData)]
+    pub struct VehicleLocalPosition {
+        pub timestamp: u64,
+        pub x: f32,
+        pub y: f32,
+        pub z: f32,
+    }
+
+    let reader = BufReader::new(File::open("../core/test_data/input/sample_log_small.ulg")?);
+
+    let stream = LoggedMessages::builder(reader)
+        .extend_subscriptions(["vehicle_gps_position", "vehicle_attitude"])?
+        .stream()?;
+
+    #[derive(Default)]
+    struct Flags {
+        gps_seen: bool,
+        att_seen: bool,
+        pos_seen: bool, 
+    }
+    
+    let mut flags = Flags::default();
+    
+    impl Flags {
+        pub fn all_seen(&self) -> bool {
+            self.gps_seen && self.att_seen && self.pos_seen
+        }
+    }
+
+    for msg_res in stream {
+        let msg = msg_res?;
+        match msg {
+            LoggedMessages::VehicleLocalPosition(v) => {
+                flags.pos_seen = true;
+                println!("VehicleLocalPosition: {}: x={} y={} z={}", v.timestamp, v.x, v.y, v.z);
+            }
+            LoggedMessages::Other(UlogMessage::LoggedData(data)) => {
+                match data.data.name.as_str() {
+                    "vehicle_gps_position" => {
+                        flags.gps_seen = true;
+                        println!("Extra GPS LoggedData: {:?}", data);
+                    }
+                    "vehicle_attitude" => {
+                        flags.att_seen = true;
+                        println!("Extra Attitude LoggedData: {:?}", data);
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+
+        if flags.all_seen() {
+            break;
+        }
+    }
+
+    assert!(flags.gps_seen, "Expected at least one 'vehicle_gps_position' message.");
+    assert!(flags.att_seen, "Expected at least one 'vehicle_attitude' message.");
+    assert!(flags.pos_seen, "Expected at least one VehicleLocalPosition message.");
+
+    Ok(())
+}
+
+
+#[test]
 /// Test the code which we include in the README to ensure it compiles.
 fn readme_example() -> Result<(), Box<dyn std::error::Error>> {
     #[derive(ULogMessages)]
@@ -310,9 +385,9 @@ fn readme_builder_example() -> Result<(), Box<dyn std::error::Error>> {
     let reader = BufReader::new(File::open("../core/test_data/input/sample_log_small.ulg")?);
 
     let stream = LoggedMessages::builder(reader)
-        .add_subscription("vehicle_gps_position".to_string())? // Add extra subscription
-        .forward_subscriptions(true)?                          // Forward AddSubscription messages
-        .stream()?;                                            // Create the iterator
+        .add_subscription("vehicle_gps_position")? // Add extra subscription
+        .forward_subscriptions(true)?              // Forward AddSubscription messages
+        .stream()?;                                // Create the iterator
 
     for msg_res in stream {
         let msg = msg_res?;

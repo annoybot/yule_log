@@ -564,13 +564,29 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
             }
             
             #[allow(dead_code)]
-            pub fn add_subscription(mut self, name: String) -> Result<Self, yule_log::errors::ULogError> {
+            pub fn add_subscription<S: Into<String>>(mut self, name: S) -> Result<Self, yule_log::errors::ULogError> {
                 if !Self::HAS_FORWARD_OTHER {
                     return Err(yule_log::errors::ULogError::InvalidConfiguration(
                         "Cannot add extra subscriptions because there is no #[yule_log(forward_other)] variant configured to receive them.".to_string()
                     ));
                 }
-                self.extra_allow_list.push(name);
+                self.extra_allow_list.push(name.into());
+                Ok(self)
+            }
+            
+            pub fn extend_subscriptions<I, S>(mut self, subs: I) -> Result<Self, yule_log::errors::ULogError>
+            where
+                I: IntoIterator<Item = S>,
+                S: Into<String>
+            {
+                if !Self::HAS_FORWARD_OTHER {
+                    return Err(yule_log::errors::ULogError::InvalidConfiguration(
+                        "Cannot add extra subscriptions because there is no #[yule_log(forward_other)] variant configured to receive them.".to_string()
+                    ));
+                }
+            
+                self.extra_allow_list.extend(subs.into_iter().map(Into::into));
+            
                 Ok(self)
             }
             
