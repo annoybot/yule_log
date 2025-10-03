@@ -15,7 +15,7 @@ use crate::message_buf::MessageBuf;
 use crate::model::{def, inst, msg};
 use crate::model::def::BaseType;
 use crate::model::MAGIC;
-use crate::model::msg::{Dropout, FileHeader, FlagBits, LoggedData, LogLevel, MultiInfo, UlogMessage};
+use crate::model::msg::{Dropout, FileHeader, FlagBits, LoggedData, LogLevel, MultiInfo, UlogMessage, Subscription};
 use crate::tokenizer::TokenList;
 
 pub struct ULogParser<R: Read> {
@@ -25,13 +25,56 @@ pub struct ULogParser<R: Read> {
     pub formats: HashMap<String, def::Format>,
     subscriptions: HashMap<u16, msg::Subscription>,
     message_name_with_multi_id: HashSet<String>,
-    pub(crate) allowed_subscription_names: Option<HashSet<String>>,
+    subscription_filter: SubscriptionFilter,
     datastream: DataStream<R>,
     max_bytes_to_read: Option<usize>,
     pub(crate) include_header: bool,
     pub(crate) include_timestamp: bool,
     pub(crate) include_padding: bool,
     _phantom: PhantomData<R>,
+}
+
+pub struct SubscriptionFilter {
+    allowed_subscription_names: Option<HashSet<String>>,
+    allowed_subscription_ids: Option<HashSet<u16>>,
+}
+
+impl Default for SubscriptionFilter {
+    fn default() -> Self {
+        Self {
+            allowed_subscription_names: None,
+            allowed_subscription_ids: None,
+        }
+    }
+} 
+
+impl SubscriptionFilter {
+    pub fn new(subscr_names: impl IntoIterator<Item=String>) -> Self {
+        let names: HashSet<String> = subscr_names.into_iter().collect::<HashSet<_>>();
+        Self {
+            allowed_subscription_names: Some(names),
+            allowed_subscription_ids: Some(HashSet::new()),
+        }
+    }
+
+    fn update_ids(&mut self, sub: &Subscription) {
+        // Because msg_ids are not known ahead of time the API specifies allowed subscriptions by name.
+        // Once the AddSubscription messages come in, then we can convert the strings names to msg_ids
+        // to more efficiently filter the subscriptions.
+        if let Some(allowed_subscription_names) = &self.allowed_subscription_names {
+            if allowed_subscription_names.contains(&sub.message_name) {
+                // Unwrap is safe here because of the initialisation code in set_allowed_subscription_names().
+                self.allowed_subscription_ids.as_mut().unwrap().insert(sub.msg_id);
+            }
+        }
+    }
+    
+    fn is_allowed(&self, msg_id: u16) -> bool {
+        match &self.allowed_subscription_ids {
+            None => true,
+            Some(set) => set.contains(&msg_id),
+        }
+    }
 }
 
 #[allow(clippy::upper_case_acronyms)]
@@ -65,7 +108,7 @@ impl<R: Read> ULogParser<R> {
             formats: HashMap::new(),
             subscriptions: HashMap::new(),
             message_name_with_multi_id: HashSet::new(),
-            allowed_subscription_names: None,
+            subscription_filter: SubscriptionFilter::default(),
             datastream: DataStream::new(reader),
             max_bytes_to_read: None,
             include_header: false,
@@ -75,12 +118,15 @@ impl<R: Read> ULogParser<R> {
         })
     }
     
+    pub(crate) fn set_allowed_subscription_names(&mut self, subscr_names: impl IntoIterator<Item=String>) {
+        self.subscription_filter = SubscriptionFilter::new(subscr_names);
+    }
 
     /// Deprecated. Use `ULogParserBuilder::set_subscription_allow_list()` instead.
     /// This will be removed or made private in a future release.
     #[deprecated]
     pub fn set_subscription_allow_list(&mut self, set: HashSet<String>) {
-        self.allowed_subscription_names = Some(set);
+        self.subscription_filter = SubscriptionFilter::new(set);
     }
 
     pub fn get_format(&self, message_name: &str) -> Result<def::Format, ULogError> {
@@ -164,6 +210,7 @@ impl<R: Read> ULogParser<R> {
                     }
                     UlogMessage::AddSubscription(ref sub) => {
                         self.subscriptions.insert(sub.msg_id, sub.clone());
+                        self.subscription_filter.update_ids(&sub);
 
                         if sub.multi_id > 0 {
                             self.message_name_with_multi_id.insert(sub.message_name.clone());
@@ -183,6 +230,7 @@ impl<R: Read> ULogParser<R> {
                 match msg {
                     UlogMessage::AddSubscription(ref sub) => {
                         self.subscriptions.insert(sub.msg_id, sub.clone());
+                        self.subscription_filter.update_ids(&sub);
 
                         if sub.multi_id > 0 {
                             self.message_name_with_multi_id.insert(sub.message_name.clone());
@@ -195,7 +243,6 @@ impl<R: Read> ULogParser<R> {
                     }
                     _ =>  {}
                 }
-
 
                 return Ok(Some(msg));
             }
@@ -212,6 +259,7 @@ impl<R: Read> ULogParser<R> {
         match message_type {
             ULogMessageType::ADD_SUBSCRIPTION => {
                 let sub = self.parse_subscription(message_buf)?;
+                
                 Ok( msg::UlogMessage::AddSubscription(sub) )
             }
             ULogMessageType::REMOVE_SUBSCRIPTION => {
@@ -222,13 +270,7 @@ impl<R: Read> ULogParser<R> {
             ULogMessageType::DATA => {
                 let msg_id = message_buf.take_u16()?;
                 if let Ok(sub) = self.get_subscription(msg_id) {
-                    let allowed = match &self.allowed_subscription_names {
-
-                        None => true,
-                        Some(set) => set.contains(&sub.message_name),
-                    };
-
-                    if allowed {
+                    if self.subscription_filter.is_allowed(sub.msg_id) {
                         let logged_data = self.parse_data_message(&sub, message_buf)?;
 
                         return Ok( msg::UlogMessage::LoggedData(logged_data.clone()));
@@ -296,12 +338,6 @@ impl<R: Read> ULogParser<R> {
 
         // Force a lookup of the format and return an error if not found.
         let _format = self.get_format(&message_name)?;
-
-        if let Some(allowed_subscription_names) = &self.allowed_subscription_names {
-            allowed_subscription_names.contains(&message_name)
-        } else {
-            true
-        };
 
         Ok ( msg::Subscription {
             multi_id,

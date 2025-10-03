@@ -56,13 +56,14 @@ impl<R: Read> ULogParserBuilder<R> {
     /// - `subs`: An iterable collection of string-like items representing the names of `LoggedData` messages
     ///           to be parsed fully and returned.
     #[must_use]
-    pub fn set_subscription_allow_list<I, S>(&mut self, subs: I)
+    pub fn set_subscription_allow_list<I, S>(mut self, subs: I) -> Self
     where
         I: IntoIterator<Item = S>,
         S: Into<String>,
     {
         let set: HashSet<String> = subs.into_iter().map(|s| s.into()).collect();
         self.allowed_subscription_names = Some(set);
+        self
     }
 
     // Final method to build the `ULogParser`
@@ -74,7 +75,11 @@ impl<R: Read> ULogParserBuilder<R> {
                 parser.include_header = self.include_header;
                 parser.include_timestamp = self.include_timestamp;
                 parser.include_padding = self.include_padding;
-                parser.allowed_subscription_names = self.allowed_subscription_names;
+                
+                if let Some(allowed_subscr) = self.allowed_subscription_names {
+                    parser.set_allowed_subscription_names(allowed_subscr);
+                }
+                
             Ok(parser)
             }
             Err(err) => { Err(err) }
