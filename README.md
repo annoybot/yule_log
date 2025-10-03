@@ -146,8 +146,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ## 🔧 Builder Interface for Advanced Configuration
 
 By default, the `::stream()` method configures the parser to only yield messages that are mapped to enum variants; 
-`LoggedData` and `AddSubscription` messages are handled internally and not visible
-to the caller.
+`LoggedData` and `AddSubscription` messages are handled internally and not visible to the caller.
 
 To override this default behaviour, the derive macro also generates a `::builder()` API for
 your `LoggedMessages` enum, allowing you to:
@@ -156,9 +155,8 @@ your `LoggedMessages` enum, allowing you to:
 - Forward `AddSubscription` messages.
 
 💡It is recommended to only map the `LoggedData` messages you need, as this avoids 
-parsing of unmapped messages which improves performance. The `add_subscription()` builder 
-feature below provides this functionality and is analogous to the
-`ULogParserBuilder::set_subscription_allow_list()`.
+parsing of unmapped messages which improves performance. Unmapped `LoggedData` messages will
+are returned in raw form as `UlogMessage::Ignored`.
 
 ### Example Usage
 
