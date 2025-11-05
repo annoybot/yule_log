@@ -3,7 +3,7 @@
 use std::collections::{HashMap, HashSet};
 use std::io::Read;
 use std::marker::PhantomData;
-
+use std::sync::Arc;
 use byteorder::{ByteOrder, LittleEndian};
 
 use crate::datastream::DataStream;
@@ -22,7 +22,7 @@ pub struct ULogParser<R: Read> {
     state: State,
     file_header: Option<FileHeader>,
     overridden_params: HashSet<String>,
-    pub formats: HashMap<String, def::Format>,
+    pub formats: HashMap<String, Arc<def::Format>>,
     subscriptions: HashMap<u16, msg::Subscription>,
     message_name_with_multi_id: HashSet<String>,
     subscription_filter: SubscriptionFilter,
@@ -129,7 +129,7 @@ impl<R: Read> ULogParser<R> {
         self.subscription_filter = SubscriptionFilter::new(set);
     }
 
-    pub fn get_format(&self, message_name: &str) -> Result<def::Format, ULogError> {
+    pub fn get_format(&self, message_name: &str) -> Result<Arc<def::Format>, ULogError> {
         match self.formats.get(message_name) {
             None => Err(UndefinedFormat(message_name.to_owned()) ),
             Some(format) => Ok( format.clone() ),
@@ -206,7 +206,7 @@ impl<R: Read> ULogParser<R> {
                             println!("Heartbeat {format}");
                         }
                         
-                        self.formats.insert(format.name.clone(), format.clone());
+                        self.formats.insert(format.name.clone(), Arc::new(format.clone()));
                     }
                     UlogMessage::AddSubscription(ref sub) => {
                         self.subscriptions.insert(sub.msg_id, sub.clone());
@@ -371,7 +371,7 @@ impl<R: Read> ULogParser<R> {
             return Err(ULogError::MissingTimestamp);
         }
         
-        let mut data_format = self.parse_data_message_sub(&format, &mut message_buf)?;
+        let mut data_format = self.parse_data_message_sub(format, &mut message_buf)?;
 
         if self.message_name_with_multi_id.contains(&sub.message_name) {
             data_format.multi_id_index = Some(sub.multi_id);
@@ -393,7 +393,7 @@ impl<R: Read> ULogParser<R> {
             })
     }
 
-    fn parse_data_message_sub(&self, format: &def::Format, message_buf: &mut MessageBuf) -> Result<inst::Format, ULogError> {
+    fn parse_data_message_sub(&self, format: Arc<def::Format>, message_buf: &mut MessageBuf) -> Result<inst::Format, ULogError> {
         let mut fields: Vec<inst::Field> = vec![];
         let mut timestamp:Option<u64> = None;
 
@@ -489,7 +489,7 @@ impl<R: Read> ULogParser<R> {
                     BOOL => Ok(inst::FieldValue::ScalarBool(parse_data_field::<bool>(field, message_buf)?)),
                     CHAR => Ok(inst::FieldValue::ScalarChar(parse_data_field::<CChar>(field, message_buf)?)),
                     OTHER(type_name) => {
-                        let child_format = &self.get_format(type_name)?;
+                        let child_format = self.get_format(type_name)?;
                         Ok(inst::FieldValue::ScalarOther(self.parse_data_message_sub(child_format, message_buf)?))
                     }
                 }
@@ -522,8 +522,8 @@ impl<R: Read> ULogParser<R> {
             BOOL => Ok(inst::FieldValue::ArrayBool(parse_array(array_size, message_buf, |buf| parse_data_field::<bool>(field, buf))?)),
             CHAR => Ok(inst::FieldValue::ArrayChar(parse_array(array_size, message_buf, |buf| parse_data_field::<CChar>(field, buf))?)),
             OTHER(type_name) => {
-                let child_format = &self.get_format(type_name)?;
-                Ok(inst::FieldValue::ArrayOther(parse_array(array_size, message_buf, |buf| self.parse_data_message_sub(child_format, buf))?))
+                let child_format = self.get_format(type_name)?;
+                Ok(inst::FieldValue::ArrayOther(parse_array(array_size, message_buf, |buf| self.parse_data_message_sub(child_format.clone(), buf))?))
             }
         }
     }
@@ -808,7 +808,7 @@ mod tests {
     
     impl<R: std::io::Read> ULogParser<R> {
         pub fn insert_format(&mut self, message_name: &str, format: def::Format) {
-            self.formats.insert(message_name.to_string(), format);
+            self.formats.insert(message_name.to_string(), format.into());
         }
     }
 

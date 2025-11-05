@@ -233,6 +233,7 @@ pub mod def {
 /// For example, `inst::Format` and `inst::Field` represent concrete data objects, which
 /// are instances of the type definitions described by `def::Format` and `def::Field`.
 pub mod inst {
+    use std::sync::Arc;
     use crate::model::CChar;
 use crate::model::def::TypeExpr;
     use crate::model::{def, inst};
@@ -243,7 +244,7 @@ use crate::model::def::TypeExpr;
         pub name: String,
         pub fields: Vec<Field>,
         pub multi_id_index: Option<u8>,
-        pub def_format: def::Format,
+        pub def_format: Arc<def::Format>,
     }
 
     #[derive(Debug, Clone, PartialEq)]
