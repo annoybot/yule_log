@@ -12,7 +12,7 @@ use crate::errors::ULogError::{UndefinedFormat, UndefinedSubscription};
 use crate::field_helpers::{parse_array, parse_data_field};
 use crate::formats::{parse_field, parse_format};
 use crate::message_buf::MessageBuf;
-use crate::model::{def, inst, msg};
+use crate::model::{def, inst, msg, CChar};
 use crate::model::def::BaseType;
 use crate::model::MAGIC;
 use crate::model::msg::{Dropout, FileHeader, FlagBits, LoggedData, LogLevel, MultiInfo, UlogMessage, Subscription};
@@ -487,7 +487,7 @@ impl<R: Read> ULogParser<R> {
                     FLOAT => Ok(inst::FieldValue::ScalarF32(parse_data_field::<f32>(field, message_buf)?)),
                     DOUBLE => Ok(inst::FieldValue::ScalarF64(parse_data_field::<f64>(field, message_buf)?)),
                     BOOL => Ok(inst::FieldValue::ScalarBool(parse_data_field::<bool>(field, message_buf)?)),
-                    CHAR => Ok(inst::FieldValue::ScalarChar(parse_data_field::<char>(field, message_buf)?)),
+                    CHAR => Ok(inst::FieldValue::ScalarChar(parse_data_field::<CChar>(field, message_buf)?)),
                     OTHER(type_name) => {
                         let child_format = &self.get_format(type_name)?;
                         Ok(inst::FieldValue::ScalarOther(self.parse_data_message_sub(child_format, message_buf)?))
@@ -520,7 +520,7 @@ impl<R: Read> ULogParser<R> {
             FLOAT => Ok(inst::FieldValue::ArrayF32(parse_array(array_size, message_buf, |buf| parse_data_field::<f32>(field, buf))?)),
             DOUBLE => Ok(inst::FieldValue::ArrayF64(parse_array(array_size, message_buf, |buf| parse_data_field::<f64>(field, buf))?)),
             BOOL => Ok(inst::FieldValue::ArrayBool(parse_array(array_size, message_buf, |buf| parse_data_field::<bool>(field, buf))?)),
-            CHAR => Ok(inst::FieldValue::ArrayChar(parse_array(array_size, message_buf, |buf| parse_data_field::<char>(field, buf))?)),
+            CHAR => Ok(inst::FieldValue::ArrayChar(parse_array(array_size, message_buf, |buf| parse_data_field::<CChar>(field, buf))?)),
             OTHER(type_name) => {
                 let child_format = &self.get_format(type_name)?;
                 Ok(inst::FieldValue::ArrayOther(parse_array(array_size, message_buf, |buf| self.parse_data_message_sub(child_format, buf))?))

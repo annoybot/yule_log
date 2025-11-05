@@ -233,7 +233,8 @@ pub mod def {
 /// For example, `inst::Format` and `inst::Field` represent concrete data objects, which
 /// are instances of the type definitions described by `def::Format` and `def::Field`.
 pub mod inst {
-    use crate::model::def::TypeExpr;
+    use crate::model::CChar;
+use crate::model::def::TypeExpr;
     use crate::model::{def, inst};
 
     #[derive(Debug, Clone, PartialEq)]
@@ -271,7 +272,7 @@ pub mod inst {
         ScalarF32(f32),
         ScalarF64(f64),
         ScalarBool(bool),
-        ScalarChar(char),
+        ScalarChar(CChar),
         ScalarOther(inst::Format),
 
         // Typed arrays
@@ -286,7 +287,7 @@ pub mod inst {
         ArrayF32(Vec<f32>),
         ArrayF64(Vec<f64>),
         ArrayBool(Vec<bool>),
-        ArrayChar(Vec<char>),
+        ArrayChar(Vec<CChar>),
         ArrayOther(Vec<inst::Format>),
     }
 }
@@ -365,5 +366,49 @@ impl def::TypeExpr {
 
     pub fn is_array(&self) -> bool {
         self.array_size.is_some()
+    }
+}
+
+
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(transparent)]
+/// A newtype wrapper for u8 when it represents character data.
+pub struct CChar(pub u8);
+
+impl From<u8> for CChar {
+    fn from(byte: u8) -> Self {
+        CChar(byte)
+    }
+}
+
+impl From<CChar> for u8 {
+    fn from(c: CChar) -> Self {
+        c.0
+    }
+}
+
+impl std::fmt::Display for CChar {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Display ASCII directly, fallback for non-ASCII
+        if self.0.is_ascii() {
+            write!(f, "{}", self.0 as char)
+        } else {
+            write!(f, "\\x{:02X}", self.0)
+        }
+    }
+}
+
+pub trait CCharVecExt {
+    fn to_string_lossy(&self) -> String;
+}
+
+impl CCharVecExt for [CChar] {
+    fn to_string_lossy(&self) -> String {
+        self.iter()
+            .map(|c| c.0)
+            .take_while(|&b| b != 0) // optional null-termination trim
+            .map(|b| b as char)
+            .collect()
     }
 }
