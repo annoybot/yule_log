@@ -405,10 +405,9 @@ pub trait CCharVecExt {
 
 impl CCharVecExt for [CChar] {
     fn to_string_lossy(&self) -> String {
-        self.iter()
-            .map(|c| c.0)
-            .take_while(|&b| b != 0) // optional null-termination trim
-            .map(|b| b as char)
-            .collect()
+        // Safe because CChar is repr(transparent) over u8 and slice is valid.
+        // ⚠️ According to the ULOG spec, strings are not NULL terminated, so we just take the whole slice.
+        let bytes: &[u8] = unsafe { std::slice::from_raw_parts(self.as_ptr() as *const u8, self.len()) };
+        String::from_utf8_lossy(bytes).into_owned()
     }
 }
