@@ -241,7 +241,7 @@ pub mod inst {
         pub name: String,
         pub fields: Vec<Field>,
         pub multi_id_index: Option<u8>,
-        pub def_format: def::Format,
+        pub def_format: Rc<def::Format>,
     }
 
     #[derive(Debug, Clone, PartialEq)]
