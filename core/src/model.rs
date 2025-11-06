@@ -233,7 +233,7 @@ pub mod def {
 pub mod inst {
     use std::rc::Rc;
     use crate::model::def::TypeExpr;
-    use crate::model::{def, inst};
+    use crate::model::{def, inst, CChar};
 
     #[derive(Debug, Clone, PartialEq)]
     pub struct Format {
@@ -271,7 +271,7 @@ pub mod inst {
         ScalarF32(f32),
         ScalarF64(f64),
         ScalarBool(bool),
-        ScalarChar(char),
+        ScalarChar(CChar),
         ScalarOther(Rc<inst::Format>),
 
         // Typed arrays
@@ -286,7 +286,7 @@ pub mod inst {
         ArrayF32(Vec<f32>),
         ArrayF64(Vec<f64>),
         ArrayBool(Vec<bool>),
-        ArrayChar(Vec<char>),
+        ArrayChar(Vec<CChar>),
         ArrayOther(Vec<inst::Format>),
     }
 }
@@ -371,3 +371,45 @@ impl def::TypeExpr {
         self.array_size.is_some()
     }
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(transparent)]
+/// A newtype wrapper for u8 when it represents character data.
+pub struct CChar(pub u8);
+
+impl From<u8> for CChar {
+    fn from(byte: u8) -> Self {
+        CChar(byte)
+    }
+}
+
+impl From<CChar> for u8 {
+    fn from(c: CChar) -> Self {
+        c.0
+    }
+}
+
+impl std::fmt::Display for CChar {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Display ASCII directly, fallback for non-ASCII
+        if self.0.is_ascii() {
+            write!(f, "{}", self.0 as char)
+        } else {
+            write!(f, "\\x{:02X}", self.0)
+        }
+    }
+}
+
+pub trait CCharSlice {
+    fn to_string_lossy(&self) -> String;
+}
+
+impl CCharSlice for [CChar] {
+    fn to_string_lossy(&self) -> String {
+        // Safe because CChar is repr(transparent) over u8 and slice is valid.
+        // ⚠️ According to the ULOG spec, strings are not NULL terminated, so we just take the whole slice.
+        let bytes: &[u8] = unsafe { std::slice::from_raw_parts(self.as_ptr() as *const u8, self.len()) };
+        String::from_utf8_lossy(bytes).into_owned()
+    }
+}
+

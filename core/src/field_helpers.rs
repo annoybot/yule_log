@@ -1,6 +1,6 @@
 use crate::errors::ULogError;
 use crate::message_buf::MessageBuf;
-use crate::model::def;
+use crate::model::CChar;
 
 pub trait ParseFromBuf: Sized {
     fn parse_from_buf(buf: &mut MessageBuf) -> Result<Self, ULogError>;
@@ -10,6 +10,9 @@ impl ParseFromBuf for u8 {
     fn parse_from_buf(buf: &mut MessageBuf) -> Result<Self, ULogError> {
         buf.take_u8()
     }
+}
+impl ParseFromBuf for CChar { 
+    fn parse_from_buf(buf: &mut MessageBuf) -> Result<Self, ULogError> { Ok(buf.take_u8()?.into()) } 
 }
 impl ParseFromBuf for u16 {
     fn parse_from_buf(buf: &mut MessageBuf) -> Result<Self, ULogError> {

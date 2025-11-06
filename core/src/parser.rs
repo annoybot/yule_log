@@ -3,7 +3,6 @@
 use crate::field_helpers::parse_primitive_array;
 use std::collections::{HashMap, HashSet};
 use std::io::Read;
-use std::marker::PhantomData;
 
 use byteorder::{ByteOrder, LittleEndian};
 
@@ -17,8 +16,7 @@ use crate::model::def::BaseType;
 use crate::model::msg::{
     Dropout, FileHeader, FlagBits, LogLevel, LoggedData, MultiInfo, Subscription, UlogMessage,
 };
-use crate::model::MAGIC;
-use crate::model::{def, inst, msg};
+use crate::model::{def, inst, msg, MAGIC};
 use crate::tokenizer::TokenList;
 
 pub struct ULogParser<R: Read> {
