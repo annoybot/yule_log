@@ -187,29 +187,27 @@ pub mod msg {
 /// See also the `inst` module, which defines structs that carry actual data, which are analogues
 /// of the structures defined in this module.
 pub mod def {
-    use serde::Serialize;
-
-    #[derive(Debug, Clone, PartialEq, Serialize)]
+    #[derive(Debug, Clone, PartialEq)]
     pub struct Format {
         pub name: String,
         pub fields: Vec<Field>,
         pub padding: usize,
     }
 
-    #[derive(Debug, Clone, PartialEq, Serialize)]
+    #[derive(Debug, Clone, PartialEq)]
     pub struct Field {
         pub name: String,
         pub r#type: TypeExpr,
     }
 
-    #[derive(Debug, Clone, PartialEq, Serialize)]
+    #[derive(Debug, Clone, PartialEq)]
     pub struct TypeExpr {
         pub base_type: BaseType,
         pub array_size: Option<usize>,
     }
 
     #[allow(clippy::upper_case_acronyms)]
-    #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
+    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
     pub enum BaseType {
         UINT8,
         UINT16,
@@ -233,6 +231,7 @@ pub mod def {
 /// For example, `inst::Format` and `inst::Field` represent concrete data objects, which
 /// are instances of the type definitions described by `def::Format` and `def::Field`.
 pub mod inst {
+    use std::rc::Rc;
     use crate::model::def::TypeExpr;
     use crate::model::{def, inst};
 
@@ -273,7 +272,7 @@ pub mod inst {
         ScalarF64(f64),
         ScalarBool(bool),
         ScalarChar(char),
-        ScalarOther(inst::Format),
+        ScalarOther(Rc<inst::Format>),
 
         // Typed arrays
         ArrayU8(Vec<u8>),
@@ -308,7 +307,7 @@ impl inst::FieldValue {
             ArrayF64(v) => Some(v.iter().map(|&x| ScalarF64(x)).collect()),
             ArrayBool(v) => Some(v.iter().map(|&x| ScalarBool(x)).collect()),
             ArrayChar(v) => Some(v.iter().map(|&x| ScalarChar(x)).collect()),
-            ArrayOther(v) => Some(v.iter().map(|x| ScalarOther(x.clone())).collect()),
+            ArrayOther(v) => Some(v.iter().map(|x| ScalarOther(x.clone().into())).collect()),
             _ => None, // not an array
         }
     }
@@ -328,13 +327,13 @@ impl inst::Format {
         for field in &self.fields {
             let current_path = format!("{}/{}", path, field.name);
             if field.r#type.is_scalar() {
-                flattened.extend(self.flatten_data_type(current_path.clone(), &field.value));
+                flattened.extend(self.flatten_data_type(current_path, &field.value));
             } else {
-                let vec_of_scalars = &field.value.to_scalars().unwrap();
+                let vec_of_scalars = field.value.to_scalars().unwrap();
 
-                for (index, value) in vec_of_scalars.iter().enumerate() {
+                for (index, value) in vec_of_scalars.into_iter().enumerate() {
                     let array_path = format!("{current_path}.{index:02}");
-                    flattened.extend(self.flatten_data_type(array_path, value));
+                    flattened.extend(self.flatten_data_type(array_path, &value));
                 }
             }
         }

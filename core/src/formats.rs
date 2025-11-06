@@ -162,7 +162,7 @@ mod tests {
 
         println!(
             "re_emitted_bytes: {:?}",
-            String::from_utf8(re_emitted_bytes.clone()).unwrap()
+            str::from_utf8(&re_emitted_bytes).unwrap()
         );
 
         assert_eq!(re_emitted_bytes, input);
