@@ -24,13 +24,13 @@ pub struct PositionSetpointTriplet {
 // https://docs.px4.io/main/en/msg_docs/PositionSetpoint.html
 pub struct PositionSetpoint {
     timestamp: u64,
-    vx: f32,    // local velocity setpoint in m/s in NED
-    vy: f32,    // local velocity setpoint in m/s in NED
-    vz: f32,    // local velocity setpoint in m/s in NED
+    vx: f32, // local velocity setpoint in m/s in NED
+    vy: f32, // local velocity setpoint in m/s in NED
+    vz: f32, // local velocity setpoint in m/s in NED
 
-    lat: f64,   // latitude, in deg
-    lon: f64,   // longitude, in deg
-    alt: f32,   // altitude AMSL, in m
+    lat: f64, // latitude, in deg
+    lon: f64, // longitude, in deg
+    alt: f32, // altitude AMSL, in m
 }
 
 #[derive(ULogData, Debug, Clone)]
@@ -63,9 +63,7 @@ impl PartialEq for PositionSetpoint {
 
 impl PartialEq for PositionSetpointTriplet {
     fn eq(&self, other: &Self) -> bool {
-        self.previous == other.previous
-            && self.current == other.current
-            && self.next == other.next
+        self.previous == other.previous && self.current == other.current && self.next == other.next
     }
 }
 
@@ -88,8 +86,6 @@ impl PartialEq for TelemetryStatus {
 fn float_eq_nan(a: f64, b: f64) -> bool {
     (a.is_nan() && b.is_nan()) || (a == b)
 }
-
-
 
 #[test]
 fn test_derive_nested() -> Result<(), Box<dyn std::error::Error>> {
@@ -117,101 +113,259 @@ fn test_derive_nested() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Expected data from your output snippet
-    let expected_position_triplets = vec![
-        PositionSetpointTriplet {
-            previous: PositionSetpoint {
-                timestamp: 1_425_100,
-                vx: 0.0,
-                vy: 0.0,
-                vz: 0.0,
-                lat: f64::NAN,
-                lon: f64::NAN,
-                alt: 0.0,
-            },
-            current: PositionSetpoint {
-                timestamp: 1_425_100,
-                vx: 0.0,
-                vy: 0.0,
-                vz: 0.0,
-                lat: f64::NAN,
-                lon: f64::NAN,
-                alt: 0.0,
-            },
-            next: PositionSetpoint {
-                timestamp: 1_425_101,
-                vx: 0.0,
-                vy: 0.0,
-                vz: 0.0,
-                lat: f64::NAN,
-                lon: f64::NAN,
-                alt: 0.0,
-            },
-        }
-    ];
+    let expected_position_triplets = vec![PositionSetpointTriplet {
+        previous: PositionSetpoint {
+            timestamp: 1_425_100,
+            vx: 0.0,
+            vy: 0.0,
+            vz: 0.0,
+            lat: f64::NAN,
+            lon: f64::NAN,
+            alt: 0.0,
+        },
+        current: PositionSetpoint {
+            timestamp: 1_425_100,
+            vx: 0.0,
+            vy: 0.0,
+            vz: 0.0,
+            lat: f64::NAN,
+            lon: f64::NAN,
+            alt: 0.0,
+        },
+        next: PositionSetpoint {
+            timestamp: 1_425_101,
+            vx: 0.0,
+            vy: 0.0,
+            vz: 0.0,
+            lat: f64::NAN,
+            lon: f64::NAN,
+            alt: 0.0,
+        },
+    }];
 
     let expected_telemetry_statuses = vec![
         TelemetryStatus {
             heartbeats: vec![
-                TelemetryHeartbeat { timestamp: 19_465_393, system_id: 255, component_id: 190, state: 4 },
-                TelemetryHeartbeat { timestamp: 0, system_id: 0, component_id: 0, state: 0 },
-                TelemetryHeartbeat { timestamp: 0, system_id: 0, component_id: 0, state: 0 },
-                TelemetryHeartbeat { timestamp: 0, system_id: 0, component_id: 0, state: 0 },
+                TelemetryHeartbeat {
+                    timestamp: 19_465_393,
+                    system_id: 255,
+                    component_id: 190,
+                    state: 4,
+                },
+                TelemetryHeartbeat {
+                    timestamp: 0,
+                    system_id: 0,
+                    component_id: 0,
+                    state: 0,
+                },
+                TelemetryHeartbeat {
+                    timestamp: 0,
+                    system_id: 0,
+                    component_id: 0,
+                    state: 0,
+                },
+                TelemetryHeartbeat {
+                    timestamp: 0,
+                    system_id: 0,
+                    component_id: 0,
+                    state: 0,
+                },
             ],
         },
         TelemetryStatus {
             heartbeats: vec![
-                TelemetryHeartbeat { timestamp: 20_465_189, system_id: 255, component_id: 190, state: 4 },
-                TelemetryHeartbeat { timestamp: 0, system_id: 0, component_id: 0, state: 0 },
-                TelemetryHeartbeat { timestamp: 0, system_id: 0, component_id: 0, state: 0 },
-                TelemetryHeartbeat { timestamp: 0, system_id: 0, component_id: 0, state: 0 },
+                TelemetryHeartbeat {
+                    timestamp: 20_465_189,
+                    system_id: 255,
+                    component_id: 190,
+                    state: 4,
+                },
+                TelemetryHeartbeat {
+                    timestamp: 0,
+                    system_id: 0,
+                    component_id: 0,
+                    state: 0,
+                },
+                TelemetryHeartbeat {
+                    timestamp: 0,
+                    system_id: 0,
+                    component_id: 0,
+                    state: 0,
+                },
+                TelemetryHeartbeat {
+                    timestamp: 0,
+                    system_id: 0,
+                    component_id: 0,
+                    state: 0,
+                },
             ],
         },
         TelemetryStatus {
             heartbeats: vec![
-                TelemetryHeartbeat { timestamp: 21_465_211, system_id: 255, component_id: 190, state: 4 },
-                TelemetryHeartbeat { timestamp: 0, system_id: 0, component_id: 0, state: 0 },
-                TelemetryHeartbeat { timestamp: 0, system_id: 0, component_id: 0, state: 0 },
-                TelemetryHeartbeat { timestamp: 0, system_id: 0, component_id: 0, state: 0 },
+                TelemetryHeartbeat {
+                    timestamp: 21_465_211,
+                    system_id: 255,
+                    component_id: 190,
+                    state: 4,
+                },
+                TelemetryHeartbeat {
+                    timestamp: 0,
+                    system_id: 0,
+                    component_id: 0,
+                    state: 0,
+                },
+                TelemetryHeartbeat {
+                    timestamp: 0,
+                    system_id: 0,
+                    component_id: 0,
+                    state: 0,
+                },
+                TelemetryHeartbeat {
+                    timestamp: 0,
+                    system_id: 0,
+                    component_id: 0,
+                    state: 0,
+                },
             ],
         },
         TelemetryStatus {
             heartbeats: vec![
-                TelemetryHeartbeat { timestamp: 21_465_211, system_id: 255, component_id: 190, state: 4 },
-                TelemetryHeartbeat { timestamp: 0, system_id: 0, component_id: 0, state: 0 },
-                TelemetryHeartbeat { timestamp: 0, system_id: 0, component_id: 0, state: 0 },
-                TelemetryHeartbeat { timestamp: 0, system_id: 0, component_id: 0, state: 0 },
+                TelemetryHeartbeat {
+                    timestamp: 21_465_211,
+                    system_id: 255,
+                    component_id: 190,
+                    state: 4,
+                },
+                TelemetryHeartbeat {
+                    timestamp: 0,
+                    system_id: 0,
+                    component_id: 0,
+                    state: 0,
+                },
+                TelemetryHeartbeat {
+                    timestamp: 0,
+                    system_id: 0,
+                    component_id: 0,
+                    state: 0,
+                },
+                TelemetryHeartbeat {
+                    timestamp: 0,
+                    system_id: 0,
+                    component_id: 0,
+                    state: 0,
+                },
             ],
         },
         TelemetryStatus {
             heartbeats: vec![
-                TelemetryHeartbeat { timestamp: 22_477_255, system_id: 255, component_id: 190, state: 4 },
-                TelemetryHeartbeat { timestamp: 0, system_id: 0, component_id: 0, state: 0 },
-                TelemetryHeartbeat { timestamp: 0, system_id: 0, component_id: 0, state: 0 },
-                TelemetryHeartbeat { timestamp: 0, system_id: 0, component_id: 0, state: 0 },
+                TelemetryHeartbeat {
+                    timestamp: 22_477_255,
+                    system_id: 255,
+                    component_id: 190,
+                    state: 4,
+                },
+                TelemetryHeartbeat {
+                    timestamp: 0,
+                    system_id: 0,
+                    component_id: 0,
+                    state: 0,
+                },
+                TelemetryHeartbeat {
+                    timestamp: 0,
+                    system_id: 0,
+                    component_id: 0,
+                    state: 0,
+                },
+                TelemetryHeartbeat {
+                    timestamp: 0,
+                    system_id: 0,
+                    component_id: 0,
+                    state: 0,
+                },
             ],
         },
         TelemetryStatus {
             heartbeats: vec![
-                TelemetryHeartbeat { timestamp: 23_465_445, system_id: 255, component_id: 190, state: 4 },
-                TelemetryHeartbeat { timestamp: 0, system_id: 0, component_id: 0, state: 0 },
-                TelemetryHeartbeat { timestamp: 0, system_id: 0, component_id: 0, state: 0 },
-                TelemetryHeartbeat { timestamp: 0, system_id: 0, component_id: 0, state: 0 },
+                TelemetryHeartbeat {
+                    timestamp: 23_465_445,
+                    system_id: 255,
+                    component_id: 190,
+                    state: 4,
+                },
+                TelemetryHeartbeat {
+                    timestamp: 0,
+                    system_id: 0,
+                    component_id: 0,
+                    state: 0,
+                },
+                TelemetryHeartbeat {
+                    timestamp: 0,
+                    system_id: 0,
+                    component_id: 0,
+                    state: 0,
+                },
+                TelemetryHeartbeat {
+                    timestamp: 0,
+                    system_id: 0,
+                    component_id: 0,
+                    state: 0,
+                },
             ],
         },
         TelemetryStatus {
             heartbeats: vec![
-                TelemetryHeartbeat { timestamp: 24_477_325, system_id: 255, component_id: 190, state: 4 },
-                TelemetryHeartbeat { timestamp: 0, system_id: 0, component_id: 0, state: 0 },
-                TelemetryHeartbeat { timestamp: 0, system_id: 0, component_id: 0, state: 0 },
-                TelemetryHeartbeat { timestamp: 0, system_id: 0, component_id: 0, state: 0 },
+                TelemetryHeartbeat {
+                    timestamp: 24_477_325,
+                    system_id: 255,
+                    component_id: 190,
+                    state: 4,
+                },
+                TelemetryHeartbeat {
+                    timestamp: 0,
+                    system_id: 0,
+                    component_id: 0,
+                    state: 0,
+                },
+                TelemetryHeartbeat {
+                    timestamp: 0,
+                    system_id: 0,
+                    component_id: 0,
+                    state: 0,
+                },
+                TelemetryHeartbeat {
+                    timestamp: 0,
+                    system_id: 0,
+                    component_id: 0,
+                    state: 0,
+                },
             ],
         },
         TelemetryStatus {
             heartbeats: vec![
-                TelemetryHeartbeat { timestamp: 25_477_255, system_id: 255, component_id: 190, state: 4 },
-                TelemetryHeartbeat { timestamp: 0, system_id: 0, component_id: 0, state: 0 },
-                TelemetryHeartbeat { timestamp: 0, system_id: 0, component_id: 0, state: 0 },
-                TelemetryHeartbeat { timestamp: 0, system_id: 0, component_id: 0, state: 0 },
+                TelemetryHeartbeat {
+                    timestamp: 25_477_255,
+                    system_id: 255,
+                    component_id: 190,
+                    state: 4,
+                },
+                TelemetryHeartbeat {
+                    timestamp: 0,
+                    system_id: 0,
+                    component_id: 0,
+                    state: 0,
+                },
+                TelemetryHeartbeat {
+                    timestamp: 0,
+                    system_id: 0,
+                    component_id: 0,
+                    state: 0,
+                },
+                TelemetryHeartbeat {
+                    timestamp: 0,
+                    system_id: 0,
+                    component_id: 0,
+                    state: 0,
+                },
             ],
         },
     ];

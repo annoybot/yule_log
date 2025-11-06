@@ -25,7 +25,7 @@ pub enum ULogError {
 
     #[error("Unexpected End of File")]
     UnexpectedEndOfFile,
-    
+
     #[error("Parse error: {0}")]
     ParseError(String),
 
@@ -34,7 +34,7 @@ pub enum ULogError {
 
     #[error("Database error: {0}")]
     DatabaseError(String),
-    
+
     #[error("Undefined format {0}")]
     UndefinedFormat(String),
 

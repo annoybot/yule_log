@@ -1,8 +1,8 @@
 use std::fmt;
 use std::fmt::Formatter;
 
-use crate::model::{def, inst, msg};
 use crate::model::inst::FieldValue;
+use crate::model::{def, inst, msg};
 
 impl std::fmt::Display for inst::FieldValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -50,10 +50,13 @@ impl std::fmt::Display for inst::FieldValue {
 
 // helper for formatting arrays
 fn fmt_array<T: fmt::Display>(arr: &[T], f: &mut Formatter<'_>) -> fmt::Result {
-    let s = arr.iter().map(std::string::ToString::to_string).collect::<Vec<_>>().join(", ");
+    let s = arr
+        .iter()
+        .map(std::string::ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(", ");
     write!(f, "[{s}]")
 }
-
 
 impl fmt::Display for msg::Parameter {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -72,7 +75,7 @@ impl fmt::Display for inst::ParameterValue {
 
 impl fmt::Display for msg::DefaultParameter {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let default_type =  self.get_default_type();
+        let default_type = self.get_default_type();
         let mut default_type_str = String::with_capacity(25);
 
         if default_type.system_wide {
@@ -85,14 +88,7 @@ impl fmt::Display for msg::DefaultParameter {
             default_type_str.push_str("Configuration");
         }
 
-
-        write!(
-            f,
-            "{} ({}): {}",
-            self.key,
-            default_type_str,
-            self.value
-        )
+        write!(f, "{} ({}): {}", self.key, default_type_str, self.value)
     }
 }
 
@@ -150,7 +146,6 @@ impl fmt::Display for msg::Info {
     }
 }
 
-
 impl fmt::Display for msg::MultiInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}: ", self.key)?;
@@ -205,10 +200,13 @@ impl fmt::Display for msg::MultiInfo {
     }
 }
 
-
 impl fmt::Display for msg::Subscription {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "Subscription: {} msg_id: {}", self.message_name, self.msg_id)
+        write!(
+            f,
+            "Subscription: {} msg_id: {}",
+            self.message_name, self.msg_id
+        )
     }
 }
 
@@ -233,7 +231,6 @@ impl fmt::Display for def::Field {
 
 impl fmt::Display for def::TypeExpr {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        
         match self.array_size {
             None => {
                 write!(f, "{}", self.base_type)
@@ -268,22 +265,17 @@ impl fmt::Display for def::BaseType {
 impl fmt::Display for inst::Format {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match &self.multi_id_index {
-            None => write!(f, "{name}", name=self.name),
-            Some(index) => write!(f, "{name}.{index:02}", name=self.name, index=index),
+            None => write!(f, "{name}", name = self.name),
+            Some(index) => write!(f, "{name}.{index:02}", name = self.name, index = index),
         }
     }
 }
-
 
 impl fmt::Display for msg::LoggedString {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.tag {
             None => {
-                write!(
-                    f,
-                    "{} {}: {}",
-                    self.level, self.timestamp, self.msg
-                )
+                write!(f, "{} {}: {}", self.level, self.timestamp, self.msg)
             }
             Some(tag) => {
                 write!(

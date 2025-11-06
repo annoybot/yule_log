@@ -1,10 +1,9 @@
-
 pub(crate) const MAGIC: [u8; 7] = [b'U', b'L', b'o', b'g', 0x01, 0x12, 0x35];
 
 pub mod msg {
     use crate::errors::ULogError;
-    use crate::model::{def, inst};
     use crate::model::MAGIC;
+    use crate::model::{def, inst};
 
     #[derive(Debug)]
     pub enum UlogMessage {
@@ -27,7 +26,7 @@ pub mod msg {
         Ignored {
             msg_type: u8,
             message_contents: Vec<u8>,
-        }
+        },
     }
 
     #[derive(Debug, Copy, Clone)]
@@ -50,9 +49,9 @@ pub mod msg {
 
     #[derive(Debug)]
     pub struct FlagBits {
-        pub compat_flags: [u8;8],
-        pub incompat_flags: [u8;8],
-        pub appended_data_offsets: [u64;3],
+        pub compat_flags: [u8; 8],
+        pub incompat_flags: [u8; 8],
+        pub appended_data_offsets: [u64; 3],
     }
 
     impl FlagBits {
@@ -61,13 +60,12 @@ pub mod msg {
 
         // If true, the log contains default parameters message
         // FIXME: Handle default parameters.
-        pub fn has_default_parameters(&self)-> bool {
+        pub fn has_default_parameters(&self) -> bool {
             self.compat_flags[0] & Self::ULOG_COMPAT_FLAG0_DEFAULT_PARAMETERS_MASK != 0
-
         }
 
         // If true, the log contains appended data and at least one of the appended_offsets is non-zero.
-        pub fn has_data_appended(&self) ->  bool {
+        pub fn has_data_appended(&self) -> bool {
             self.incompat_flags[0] & Self::ULOG_INCOMPAT_FLAG0_DATA_APPENDED_MASK != 0
         }
     }
@@ -112,7 +110,7 @@ pub mod msg {
     pub struct MultiInfo {
         pub is_continued: bool,
         pub key: String,
-	    pub r#type: def::TypeExpr,
+        pub r#type: def::TypeExpr,
         pub value: inst::FieldValue,
     }
 
@@ -128,15 +126,15 @@ pub mod msg {
         pub key: String,
         pub default_types: u8,
         pub r#type: def::TypeExpr,
-        pub value: inst::ParameterValue
+        pub value: inst::ParameterValue,
     }
-    
+
     #[derive(Debug)]
     pub struct DefaultType {
         pub system_wide: bool,
         pub configuration: bool,
     }
-    
+
     const DEFAULT_TYPE_SYSTEM_WIDE: u8 = 0b01;
     const DEFAULT_TYPE_CONFIGURATION: u8 = 0b10;
 
@@ -148,7 +146,7 @@ pub mod msg {
             }
         }
     }
-    
+
     #[derive(Debug, Clone)]
     pub struct LoggedData {
         pub timestamp: u64,
@@ -174,14 +172,16 @@ pub mod msg {
                 b'5' => Ok(LogLevel::Notice),
                 b'6' => Ok(LogLevel::Info),
                 b'7' => Ok(LogLevel::Debug),
-                byte => Err(ULogError::ParseError(format!("Invalid LogLevel value: {byte:02X}"))),
+                byte => Err(ULogError::ParseError(format!(
+                    "Invalid LogLevel value: {byte:02X}"
+                ))),
             }
         }
     }
 }
 
 /// This module defines structs that represent the structure or schema, without any actual data.
-/// For example, a `def::Format` represents the declaration of an aggregate data type, 
+/// For example, a `def::Format` represents the declaration of an aggregate data type,
 /// similar to a struct, containing `def::Field` definitions.
 ///
 /// See also the `inst` module, which defines structs that carry actual data, which are analogues
@@ -199,7 +199,7 @@ pub mod def {
     #[derive(Debug, Clone, PartialEq, Serialize)]
     pub struct Field {
         pub name: String,
-        pub r#type: TypeExpr
+        pub r#type: TypeExpr,
     }
 
     #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -252,10 +252,11 @@ pub mod inst {
         pub value: FieldValue,
     }
 
-
     #[derive(Debug, Clone)]
-    pub enum ParameterValue { INT32(i32), FLOAT(f32) }
-
+    pub enum ParameterValue {
+        INT32(i32),
+        FLOAT(f32),
+    }
 
     #[derive(Debug, Clone, PartialEq)]
     pub enum FieldValue {
@@ -295,19 +296,19 @@ impl inst::FieldValue {
     pub fn to_scalars(&self) -> Option<Vec<inst::FieldValue>> {
         use inst::FieldValue::*;
         match self {
-            ArrayU8(v)   => Some(v.iter().map(|&x| ScalarU8(x)).collect()),
-            ArrayU16(v)  => Some(v.iter().map(|&x| ScalarU16(x)).collect()),
-            ArrayU32(v)  => Some(v.iter().map(|&x| ScalarU32(x)).collect()),
-            ArrayU64(v)  => Some(v.iter().map(|&x| ScalarU64(x)).collect()),
-            ArrayI8(v)   => Some(v.iter().map(|&x| ScalarI8(x)).collect()),
-            ArrayI16(v)  => Some(v.iter().map(|&x| ScalarI16(x)).collect()),
-            ArrayI32(v)  => Some(v.iter().map(|&x| ScalarI32(x)).collect()),
-            ArrayI64(v)  => Some(v.iter().map(|&x| ScalarI64(x)).collect()),
-            ArrayF32(v)  => Some(v.iter().map(|&x| ScalarF32(x)).collect()),
-            ArrayF64(v)  => Some(v.iter().map(|&x| ScalarF64(x)).collect()),
+            ArrayU8(v) => Some(v.iter().map(|&x| ScalarU8(x)).collect()),
+            ArrayU16(v) => Some(v.iter().map(|&x| ScalarU16(x)).collect()),
+            ArrayU32(v) => Some(v.iter().map(|&x| ScalarU32(x)).collect()),
+            ArrayU64(v) => Some(v.iter().map(|&x| ScalarU64(x)).collect()),
+            ArrayI8(v) => Some(v.iter().map(|&x| ScalarI8(x)).collect()),
+            ArrayI16(v) => Some(v.iter().map(|&x| ScalarI16(x)).collect()),
+            ArrayI32(v) => Some(v.iter().map(|&x| ScalarI32(x)).collect()),
+            ArrayI64(v) => Some(v.iter().map(|&x| ScalarI64(x)).collect()),
+            ArrayF32(v) => Some(v.iter().map(|&x| ScalarF32(x)).collect()),
+            ArrayF64(v) => Some(v.iter().map(|&x| ScalarF64(x)).collect()),
             ArrayBool(v) => Some(v.iter().map(|&x| ScalarBool(x)).collect()),
             ArrayChar(v) => Some(v.iter().map(|&x| ScalarChar(x)).collect()),
-            ArrayOther(v)=> Some(v.iter().map(|x| ScalarOther(x.clone())).collect()),
+            ArrayOther(v) => Some(v.iter().map(|x| ScalarOther(x.clone())).collect()),
             _ => None, // not an array
         }
     }
@@ -316,7 +317,7 @@ impl inst::FieldValue {
 impl inst::Format {
     #[deprecated]
     pub fn flatten(&self) -> Vec<(String, inst::FieldValue)> {
-        let prefix:String = self.to_string();
+        let prefix: String = self.to_string();
 
         self.flatten_sub(&prefix)
     }
@@ -330,7 +331,7 @@ impl inst::Format {
                 flattened.extend(self.flatten_data_type(current_path.clone(), &field.value));
             } else {
                 let vec_of_scalars = &field.value.to_scalars().unwrap();
-                
+
                 for (index, value) in vec_of_scalars.iter().enumerate() {
                     let array_path = format!("{current_path}.{index:02}");
                     flattened.extend(self.flatten_data_type(array_path, value));
@@ -343,7 +344,11 @@ impl inst::Format {
 
     // Helper method to flatten an inst::DataType, handling recursion if the type is OTHER
     #[allow(clippy::unused_self)]
-    fn flatten_data_type(&self, path: String, value: &inst::FieldValue) -> Vec<(String, inst::FieldValue)> {
+    fn flatten_data_type(
+        &self,
+        path: String,
+        value: &inst::FieldValue,
+    ) -> Vec<(String, inst::FieldValue)> {
         use inst::FieldValue::*;
         match value {
             ScalarOther(nested_format) => {

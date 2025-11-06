@@ -4,8 +4,7 @@ use crate::model::def;
 use crate::tokenizer::Token;
 use crate::tokenizer::TokenList;
 
-pub(crate) fn parse_format(message_buf: MessageBuf) -> Result<def::Format, ULogError>
-{
+pub(crate) fn parse_format(message_buf: MessageBuf) -> Result<def::Format, ULogError> {
     let str_format = String::from_utf8(message_buf.into_remaining_bytes())?;
 
     let mut token_list = TokenList::from_str(&str_format);
@@ -24,12 +23,14 @@ pub(crate) fn parse_format(message_buf: MessageBuf) -> Result<def::Format, ULogE
 
     while !token_list.is_empty() {
         fields.push(parse_field(&mut token_list)?);
-        
+
         match token_list.consume_one()? {
             Token::Semicolon => {}
-            token => { Err(ULogError::ParseError(format!(
-                "Invalid format definition. Expected a Semicolon, got: {token:?}"
-            )))?; }
+            token => {
+                Err(ULogError::ParseError(format!(
+                    "Invalid format definition. Expected a Semicolon, got: {token:?}"
+                )))?;
+            }
         }
     }
 
@@ -40,19 +41,18 @@ pub(crate) fn parse_format(message_buf: MessageBuf) -> Result<def::Format, ULogE
     })
 }
 
-pub(crate) fn parse_field(token_list: &mut TokenList) -> Result<def::Field, ULogError>
-{
+pub(crate) fn parse_field(token_list: &mut TokenList) -> Result<def::Field, ULogError> {
     log::trace!("token_list: {token_list:?}");
 
     let base_type = match token_list.consume_one()? {
-        Token::Identifier(type_name) => { def::BaseType::from_string(type_name) }
+        Token::Identifier(type_name) => def::BaseType::from_string(type_name),
 
-        token => { Err(ULogError::ParseError(format!(
+        token => Err(ULogError::ParseError(format!(
             "Invalid field definition. Expected an Identifier, got: {token:?}"
-        )))? }
+        )))?,
     };
 
-    let mut array_size:Option<usize> = None;
+    let mut array_size: Option<usize> = None;
 
     if token_list.peek() == Some(&Token::LBrace) {
         array_size = match token_list.consume_three()? {
@@ -64,10 +64,10 @@ pub(crate) fn parse_field(token_list: &mut TokenList) -> Result<def::Field, ULog
     }
 
     let field_name = match token_list.consume_one()? {
-        Token::Identifier(str) => { str }
-        token => { Err(ULogError::ParseError(format!(
+        Token::Identifier(str) => str,
+        token => Err(ULogError::ParseError(format!(
             "Invalid field definition. Expected an Identifier, got: {token:?}"
-        )))? }
+        )))?,
     };
 
     Ok(def::Field {
@@ -80,8 +80,7 @@ pub(crate) fn parse_field(token_list: &mut TokenList) -> Result<def::Field, ULog
 }
 
 impl def::BaseType {
-    pub fn from_string(string: &str) -> def::BaseType
-    {
+    pub fn from_string(string: &str) -> def::BaseType {
         match string {
             "int8_t" => def::BaseType::INT8,
             "int16_t" => def::BaseType::INT16,
@@ -96,7 +95,7 @@ impl def::BaseType {
             "bool" => def::BaseType::BOOL,
             "char" => def::BaseType::CHAR,
             _ => def::BaseType::OTHER(string.to_string()),
-        } 
+        }
     }
 
     #[allow(dead_code)]
@@ -107,14 +106,14 @@ impl def::BaseType {
 
 #[cfg(test)]
 mod tests {
-    use crate::encode::Encode;
     use super::*;
+    use crate::encode::Encode;
 
     #[test]
     fn test_parse_format() {
         let input = b"my_format:uint64_t timestamp; bool is_happy; uint8_t[8] pet_ids;";
         let message_buf = MessageBuf::from_vec(input.to_vec());
-        
+
         // Call the parse_format method
         let result = parse_format(message_buf);
 
@@ -127,21 +126,21 @@ mod tests {
                     r#type: def::TypeExpr {
                         base_type: def::BaseType::UINT64,
                         array_size: None,
-                    }
+                    },
                 },
                 def::Field {
                     name: "is_happy".to_string(),
                     r#type: def::TypeExpr {
                         base_type: def::BaseType::BOOL,
                         array_size: None,
-                    }
+                    },
                 },
                 def::Field {
                     name: "pet_ids".to_string(),
                     r#type: def::TypeExpr {
                         base_type: def::BaseType::UINT8,
                         array_size: Some(8),
-                    }
+                    },
                 },
             ],
             padding: 0,
@@ -155,16 +154,17 @@ mod tests {
     fn test_round_trip_format() {
         let input = b"my_format:uint64_t timestamp;custom_type custom_field;bool is_happy;custom_type2[4] custom_field;uint8_t[8] pet_ids;";
         let message_buf = MessageBuf::from_vec(input.to_vec());
-        
+
         let parsed_format = parse_format(message_buf).unwrap();
 
         let mut re_emitted_bytes = Vec::new();
         parsed_format.encode(&mut re_emitted_bytes).unwrap();
-        
-        println!("re_emitted_bytes: {:?}", String::from_utf8(re_emitted_bytes.clone()).unwrap());
-        
+
+        println!(
+            "re_emitted_bytes: {:?}",
+            String::from_utf8(re_emitted_bytes.clone()).unwrap()
+        );
+
         assert_eq!(re_emitted_bytes, input);
     }
 }
-
-

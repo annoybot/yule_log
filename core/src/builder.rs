@@ -45,11 +45,11 @@ impl<R: Read> ULogParserBuilder<R> {
 
     /// Sets the list of `LoggedData` messages that the parser will return.
     ///
-    /// By default, all `LoggedData` messages will be returned, which incurs extra parsing cost. 
-    /// 
+    /// By default, all `LoggedData` messages will be returned, which incurs extra parsing cost.
+    ///
     /// Specifying only the required messages in this allow list can greatly improve parser performance.
     ///
-    /// Any `LoggedData` messages not included in this allow list will be emitted as raw bytes in a 
+    /// Any `LoggedData` messages not included in this allow list will be emitted as raw bytes in a
     /// `UlogMessage::Ignored` variant, so no messages are lost.
     ///
     /// # Parameters
@@ -70,19 +70,19 @@ impl<R: Read> ULogParserBuilder<R> {
     pub fn build(self) -> Result<ULogParser<R>, ULogError> {
         let result = ULogParser::new(self.reader);
 
-        match  result {
+        match result {
             Ok(mut parser) => {
                 parser.include_header = self.include_header;
                 parser.include_timestamp = self.include_timestamp;
                 parser.include_padding = self.include_padding;
-                
+
                 if let Some(allowed_subscr) = self.allowed_subscription_names {
                     parser.set_allowed_subscription_names(allowed_subscr);
                 }
-                
-            Ok(parser)
+
+                Ok(parser)
             }
-            Err(err) => { Err(err) }
+            Err(err) => Err(err),
         }
     }
 }

@@ -27,7 +27,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     if path.is_file() {
         process_file(path.into())?;
-    } else  {
+    } else {
         eprintln!("Error: The path must specify a ulog file. Directories are not supported..");
         std::process::exit(1);
     }
@@ -46,7 +46,10 @@ fn process_file(ulog_path: Box<Path>) -> Result<(), Box<dyn Error>> {
 
     // Create the output file path.
     let output_path = ulog_path.with_extension(""); // Strip the `.ulg` extension
-    let output_path = output_path.with_file_name(format!("{}_emitted.ulg", output_path.file_name().unwrap().to_string_lossy()));
+    let output_path = output_path.with_file_name(format!(
+        "{}_emitted.ulg",
+        output_path.file_name().unwrap().to_string_lossy()
+    ));
 
     // Open the output file for writing.
     let file = File::create(output_path)?;

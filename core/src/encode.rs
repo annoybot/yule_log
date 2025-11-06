@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 
-use crate::model::{def, inst, msg};
 use crate::model::msg::{LoggedData, UlogMessage};
+use crate::model::{def, inst, msg};
 use crate::parser::ULogMessageType;
 
 // Define Encode trait
@@ -49,8 +49,9 @@ impl UlogMessage {
             UlogMessage::LoggedString(_) => ULogMessageType::LOGGING,
             UlogMessage::TaggedLoggedString(_) => ULogMessageType::LOGGING_TAGGED,
             UlogMessage::DropoutMark(_) => ULogMessageType::DROPOUT,
-            UlogMessage::Unhandled { msg_type, .. } | 
-            UlogMessage::Ignored { msg_type, .. } => ULogMessageType::from(*msg_type),
+            UlogMessage::Unhandled { msg_type, .. } | UlogMessage::Ignored { msg_type, .. } => {
+                ULogMessageType::from(*msg_type)
+            }
             UlogMessage::Header(_) => unreachable!("Handled separately"),
         }
     }
@@ -66,11 +67,15 @@ impl UlogMessage {
             UlogMessage::MultiInfo(info) => info.encode(writer),
             UlogMessage::Parameter(param) => param.encode(writer),
             UlogMessage::DefaultParameter(param) => param.encode(writer),
-            UlogMessage::LoggedString(logged_string) | 
-            UlogMessage::TaggedLoggedString(logged_string) => logged_string.encode(writer),
+            UlogMessage::LoggedString(logged_string)
+            | UlogMessage::TaggedLoggedString(logged_string) => logged_string.encode(writer),
             UlogMessage::DropoutMark(dropout) => dropout.encode(writer),
-            UlogMessage::Unhandled { message_contents, .. } | 
-            UlogMessage::Ignored { message_contents, .. } => writer.write_all(message_contents),
+            UlogMessage::Unhandled {
+                message_contents, ..
+            }
+            | UlogMessage::Ignored {
+                message_contents, ..
+            } => writer.write_all(message_contents),
             UlogMessage::Header(_) => unreachable!("Handled separately"),
         }
     }
@@ -430,7 +435,10 @@ mod tests {
 
         let re_emitted_bytes = parsed_format.encode_to_vec()?;
 
-        println!("re_emitted_bytes: {:?}", String::from_utf8_lossy(&re_emitted_bytes));
+        println!(
+            "re_emitted_bytes: {:?}",
+            String::from_utf8_lossy(&re_emitted_bytes)
+        );
 
         assert_eq!(re_emitted_bytes, input);
 

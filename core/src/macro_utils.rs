@@ -1,5 +1,5 @@
-use crate::model::inst;
 use crate::errors::ULogError;
+use crate::model::inst;
 
 /// Trait for deriving accessors for logged data.
 pub trait ULogAccessorFactory {
@@ -37,7 +37,9 @@ macro_rules! impl_fromfield_scalar {
                 match &field.value {
                     inst::FieldValue::$variant(v) => Ok(*v),
                     other => Err(ULogError::TypeMismatch(format!(
-                        "Expected {} but got {:?}", stringify!($ty), other
+                        "Expected {} but got {:?}",
+                        stringify!($ty),
+                        other
                     ))),
                 }
             }
@@ -53,7 +55,9 @@ macro_rules! impl_fromfield_array {
                 match &field.value {
                     inst::FieldValue::$variant(v) => Ok(v.clone()),
                     other => Err(ULogError::TypeMismatch(format!(
-                        "Expected Vec<{}> but got {:?}", stringify!($ty), other
+                        "Expected Vec<{}> but got {:?}",
+                        stringify!($ty),
+                        other
                     ))),
                 }
             }
@@ -89,35 +93,28 @@ impl_fromfield_array!(f64, ArrayF64);
 impl_fromfield_array!(bool, ArrayBool);
 impl_fromfield_array!(char, ArrayChar);
 
-
 impl<T> FromField for Vec<T>
 where
     T: ULogAccessorFactory,
     T::Accessor: ULogAccessor<Output = T>,
 {
-    fn from_field(
-        field: &inst::Field,
-    ) -> Result<Self, ULogError> {
+    fn from_field(field: &inst::Field) -> Result<Self, ULogError> {
         match &field.value {
             inst::FieldValue::ArrayOther(formats) => {
                 if formats.is_empty() {
                     return Ok(::std::vec::Vec::new());
                 }
                 let mut results = ::std::vec::Vec::with_capacity(formats.len());
-                let accessor = T::from_format(&formats[0].def_format, )?;
+                let accessor = T::from_format(&formats[0].def_format)?;
                 for fmt in formats {
                     results.push(accessor.get_data(fmt)?);
                 }
                 Ok(results)
             }
-            _ => {
-                Err(
-                    ULogError::TypeMismatch(
-                        format!("expected array for field {}, but found {:?}",
-                                field.name, field.r#type),
-                    ),
-                )
-            }
+            _ => Err(ULogError::TypeMismatch(format!(
+                "expected array for field {}, but found {:?}",
+                field.name, field.r#type
+            ))),
         }
     }
 }
@@ -127,22 +124,16 @@ where
     T: ULogAccessorFactory,
     T::Accessor: ULogAccessor<Output = T>,
 {
-    fn from_field(
-        field: &inst::Field,
-    ) -> Result<Self, ULogError> {
+    fn from_field(field: &inst::Field) -> Result<Self, ULogError> {
         match &field.value {
             inst::FieldValue::ScalarOther(inst_format) => {
-                let accessor = T::from_format(&inst_format.def_format, )?;
+                let accessor = T::from_format(&inst_format.def_format)?;
                 accessor.get_data(inst_format)
             }
-            _ => {
-                Err(
-                    ULogError::TypeMismatch(
-                        format!("expected a nested struct for field {}, but found {:?}",
-                                field.name, field.r#type),
-                    ),
-                )
-            }
+            _ => Err(ULogError::TypeMismatch(format!(
+                "expected a nested struct for field {}, but found {:?}",
+                field.name, field.r#type
+            ))),
         }
     }
 }

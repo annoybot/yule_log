@@ -13,13 +13,21 @@ pub struct DataStream<R: Read> {
 
 impl<R: Read> DataStream<R> {
     pub fn new(reader: R) -> DataStream<R> {
-        DataStream { reader, num_bytes_read: 0, eof: false }
+        DataStream {
+            reader,
+            num_bytes_read: 0,
+            eof: false,
+        }
     }
 
     pub fn read_exact(&mut self, buf: &mut [u8]) -> Result<usize, ULogError> {
-        log::trace!("datastream read from:  [{:04X}-{:04X}]", self.num_bytes_read, self.num_bytes_read + buf.len());
+        log::trace!(
+            "datastream read from:  [{:04X}-{:04X}]",
+            self.num_bytes_read,
+            self.num_bytes_read + buf.len()
+        );
         self.num_bytes_read += buf.len();
-        
+
         match self.reader.read_exact(buf) {
             Ok(()) => Ok(buf.len()),
             Err(err) => match err.kind() {
@@ -29,10 +37,10 @@ impl<R: Read> DataStream<R> {
                     Ok(0)
                 }
                 _ => Err(ULogError::Io(err)),
-            }
+            },
         }
     }
-    
+
     /// Skips the specified number of bytes in the underlying reader.
     pub fn skip(&mut self, num_bytes: usize) -> Result<usize, ULogError> {
         let mut total_skipped = 0;
@@ -41,7 +49,12 @@ impl<R: Read> DataStream<R> {
             let bytes_to_skip = num_bytes - total_skipped;
 
             // Attempt to read bytes without storing them
-            let bytes_read = self.reader.by_ref().take(bytes_to_skip as u64).read_to_end(&mut vec![]).map_err(ULogError::Io)?;
+            let bytes_read = self
+                .reader
+                .by_ref()
+                .take(bytes_to_skip as u64)
+                .read_to_end(&mut vec![])
+                .map_err(ULogError::Io)?;
 
             if bytes_read == 0 {
                 break; // End of stream reached
@@ -79,7 +92,7 @@ impl<R: Read> DataStream<R> {
     pub fn read_i8(&mut self) -> Result<i8, ULogError> {
         let mut buf = [0; 1];
         self.read_exact(&mut buf)?;
-        
+
         #[allow(clippy::cast_possible_wrap)]
         Ok(buf[0] as i8)
     }
@@ -121,7 +134,6 @@ impl<R: Read> DataStream<R> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use std::io::{Seek, SeekFrom, Write};
@@ -131,7 +143,12 @@ mod tests {
 
     use super::*;
 
-    fn write_record<W: Write>(writer: &mut W, type_name: &str, length: u32, value_bytes: &[u8]) -> std::io::Result<()> {
+    fn write_record<W: Write>(
+        writer: &mut W,
+        type_name: &str,
+        length: u32,
+        value_bytes: &[u8],
+    ) -> std::io::Result<()> {
         let mut type_name_bytes = [0u8; 4];
         type_name_bytes[..type_name.len()].copy_from_slice(type_name.as_bytes());
         writer.write_all(&type_name_bytes)?;
@@ -154,13 +171,55 @@ mod tests {
         // Write headers and data
         write_record(&mut file, "u8", mem::size_of::<u8>() as u32, &[42u8]).unwrap();
         write_record(&mut file, "i8", mem::size_of::<i8>() as u32, &[42i8 as u8]).unwrap();
-        write_record(&mut file, "u16", mem::size_of::<u16>() as u32, &42u16.to_le_bytes()).unwrap();
-        write_record(&mut file, "i16", mem::size_of::<i16>() as u32, &42i16.to_le_bytes()).unwrap();
-        write_record(&mut file, "u32", mem::size_of::<u32>() as u32, &42u32.to_le_bytes()).unwrap();
-        write_record(&mut file, "i32", mem::size_of::<i32>() as u32, &42i32.to_le_bytes()).unwrap();
-        write_record(&mut file, "u64", mem::size_of::<u64>() as u32, &42u64.to_le_bytes()).unwrap();
-        write_record(&mut file, "f32", mem::size_of::<f32>() as u32, &42.0f32.to_le_bytes()).unwrap();
-        write_record(&mut file, "f64", mem::size_of::<f64>() as u32, &42.0f64.to_le_bytes()).unwrap();
+        write_record(
+            &mut file,
+            "u16",
+            mem::size_of::<u16>() as u32,
+            &42u16.to_le_bytes(),
+        )
+        .unwrap();
+        write_record(
+            &mut file,
+            "i16",
+            mem::size_of::<i16>() as u32,
+            &42i16.to_le_bytes(),
+        )
+        .unwrap();
+        write_record(
+            &mut file,
+            "u32",
+            mem::size_of::<u32>() as u32,
+            &42u32.to_le_bytes(),
+        )
+        .unwrap();
+        write_record(
+            &mut file,
+            "i32",
+            mem::size_of::<i32>() as u32,
+            &42i32.to_le_bytes(),
+        )
+        .unwrap();
+        write_record(
+            &mut file,
+            "u64",
+            mem::size_of::<u64>() as u32,
+            &42u64.to_le_bytes(),
+        )
+        .unwrap();
+        write_record(
+            &mut file,
+            "f32",
+            mem::size_of::<f32>() as u32,
+            &42.0f32.to_le_bytes(),
+        )
+        .unwrap();
+        write_record(
+            &mut file,
+            "f64",
+            mem::size_of::<f64>() as u32,
+            &42.0f64.to_le_bytes(),
+        )
+        .unwrap();
         write_record(&mut file, "bool", mem::size_of::<bool>() as u32, &[1u8]).unwrap();
         write_record(&mut file, "str", 5, b"hello").unwrap(); // String length is still hardcoded
 
@@ -172,7 +231,10 @@ mod tests {
 
         // Read and verify data
         fn read_record<R: Read>(datastream: &mut DataStream<R>) -> Result<(), ULogError> {
-            let type_name = datastream.read_string(4)?.trim_end_matches('\0').to_string();
+            let type_name = datastream
+                .read_string(4)?
+                .trim_end_matches('\0')
+                .to_string();
             let length = datastream.read_u32()? as usize;
 
             match type_name.as_str() {
@@ -240,8 +302,20 @@ mod tests {
         // Write some records to the file
         write_record(&mut file, "u8", mem::size_of::<u8>() as u32, &[42u8]).unwrap();
         write_record(&mut file, "i8", mem::size_of::<i8>() as u32, &[42i8 as u8]).unwrap();
-        write_record(&mut file, "u16", mem::size_of::<u16>() as u32, &42u16.to_le_bytes()).unwrap();
-        write_record(&mut file, "f32", mem::size_of::<f32>() as u32, &42.0f32.to_le_bytes()).unwrap();
+        write_record(
+            &mut file,
+            "u16",
+            mem::size_of::<u16>() as u32,
+            &42u16.to_le_bytes(),
+        )
+        .unwrap();
+        write_record(
+            &mut file,
+            "f32",
+            mem::size_of::<f32>() as u32,
+            &42.0f32.to_le_bytes(),
+        )
+        .unwrap();
 
         file.flush().unwrap();
         file.seek(SeekFrom::Start(0)).unwrap();
@@ -253,7 +327,10 @@ mod tests {
         assert_eq!(skipped_bytes, 9);
 
         // Read the next record, which should be the i8 record now
-        let type_name = datastream.read_string(4)?.trim_end_matches('\0').to_string();
+        let type_name = datastream
+            .read_string(4)?
+            .trim_end_matches('\0')
+            .to_string();
         let length = datastream.read_u32()? as usize;
 
         assert_eq!(type_name, "i8");
@@ -265,7 +342,10 @@ mod tests {
         assert_eq!(skipped_bytes, 10);
 
         // Read the next record, which should be the f32 record now
-        let type_name = datastream.read_string(4)?.trim_end_matches('\0').to_string();
+        let type_name = datastream
+            .read_string(4)?
+            .trim_end_matches('\0')
+            .to_string();
         let length = datastream.read_u32()? as usize;
 
         assert_eq!(type_name, "f32");

@@ -1,17 +1,17 @@
 #![allow(clippy::needless_return)]
-#[allow(clippy::redundant_else)]
-pub mod parser;
+pub mod builder;
 pub mod datastream;
+mod display;
+pub mod encode;
+pub mod errors;
+mod field_helpers;
 mod formats;
-mod tokenizer;
 pub mod message_buf;
 pub mod model;
-pub mod errors;
-mod display;
-pub mod builder;
+#[allow(clippy::redundant_else)]
+pub mod parser;
 mod roundtrip_test;
-mod field_helpers;
-pub mod encode;
+mod tokenizer;
 
 #[cfg(feature = "macros")]
 pub use yule_log_macros::{ULogData, ULogMessages};

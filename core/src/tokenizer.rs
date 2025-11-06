@@ -114,7 +114,7 @@ mod tests {
             Token::Identifier("field1"),
             Token::Semicolon,
         ]
-            .into();
+        .into();
 
         let tokens = tokenize(input);
         assert_eq!(expected_tokens, tokens);
@@ -131,7 +131,7 @@ mod tests {
             Token::Identifier("field0"),
             Token::Semicolon,
         ]
-            .into();
+        .into();
 
         let tokens = tokenize(input);
         assert_eq!(expected_tokens, tokens);

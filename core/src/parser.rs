@@ -12,10 +12,12 @@ use crate::errors::ULogError::{UndefinedFormat, UndefinedSubscription};
 use crate::field_helpers::{parse_array, parse_data_field};
 use crate::formats::{parse_field, parse_format};
 use crate::message_buf::MessageBuf;
-use crate::model::{def, inst, msg};
 use crate::model::def::BaseType;
+use crate::model::msg::{
+    Dropout, FileHeader, FlagBits, LogLevel, LoggedData, MultiInfo, Subscription, UlogMessage,
+};
 use crate::model::MAGIC;
-use crate::model::msg::{Dropout, FileHeader, FlagBits, LoggedData, LogLevel, MultiInfo, UlogMessage, Subscription};
+use crate::model::{def, inst, msg};
 use crate::tokenizer::TokenList;
 
 pub struct ULogParser<R: Read> {
@@ -46,10 +48,10 @@ impl Default for SubscriptionFilter {
             allowed_subscription_ids: None,
         }
     }
-} 
+}
 
 impl SubscriptionFilter {
-    pub fn new(subscr_names: impl IntoIterator<Item=String>) -> Self {
+    pub fn new(subscr_names: impl IntoIterator<Item = String>) -> Self {
         let names: HashSet<String> = subscr_names.into_iter().collect::<HashSet<_>>();
         Self {
             allowed_subscription_names: Some(names),
@@ -64,11 +66,14 @@ impl SubscriptionFilter {
         if let Some(allowed_subscription_names) = &self.allowed_subscription_names {
             if allowed_subscription_names.contains(&sub.message_name) {
                 // Unwrap is safe here because of the initialisation code in set_allowed_subscription_names().
-                self.allowed_subscription_ids.as_mut().unwrap().insert(sub.msg_id);
+                self.allowed_subscription_ids
+                    .as_mut()
+                    .unwrap()
+                    .insert(sub.msg_id);
             }
         }
     }
-    
+
     fn is_allowed(&self, msg_id: u16) -> bool {
         match &self.allowed_subscription_ids {
             None => true,
@@ -100,7 +105,7 @@ impl<R: Read> Iterator for ULogParser<R> {
 }
 
 impl<R: Read> ULogParser<R> {
-    pub fn new(reader: R,) -> Result<ULogParser<R>, ULogError> {
+    pub fn new(reader: R) -> Result<ULogParser<R>, ULogError> {
         Ok(ULogParser {
             state: State::HEADER,
             file_header: None,
@@ -117,8 +122,11 @@ impl<R: Read> ULogParser<R> {
             _phantom: PhantomData,
         })
     }
-    
-    pub(crate) fn set_allowed_subscription_names(&mut self, subscr_names: impl IntoIterator<Item=String>) {
+
+    pub(crate) fn set_allowed_subscription_names(
+        &mut self,
+        subscr_names: impl IntoIterator<Item = String>,
+    ) {
         self.subscription_filter = SubscriptionFilter::new(subscr_names);
     }
 
@@ -131,19 +139,19 @@ impl<R: Read> ULogParser<R> {
 
     pub fn get_format(&self, message_name: &str) -> Result<def::Format, ULogError> {
         match self.formats.get(message_name) {
-            None => Err(UndefinedFormat(message_name.to_owned()) ),
-            Some(format) => Ok( format.clone() ),
+            None => Err(UndefinedFormat(message_name.to_owned())),
+            Some(format) => Ok(format.clone()),
         }
     }
 
     pub fn get_subscription(&self, msg_id: u16) -> Result<msg::Subscription, ULogError> {
         match self.subscriptions.get(&msg_id) {
-            None => Err(UndefinedSubscription(msg_id) ),
-            Some(sub) => Ok( sub.clone() ),
+            None => Err(UndefinedSubscription(msg_id)),
+            Some(sub) => Ok(sub.clone()),
         }
     }
 
-    pub(crate)  fn read_message(&mut self, msg_size: usize) -> Result<MessageBuf, ULogError> {
+    pub(crate) fn read_message(&mut self, msg_size: usize) -> Result<MessageBuf, ULogError> {
         let mut message: Vec<u8> = vec![0; msg_size];
         self.datastream.read_exact(&mut message)?;
         Ok(MessageBuf::from_vec(message))
@@ -151,7 +159,7 @@ impl<R: Read> ULogParser<R> {
 
     #[allow(clippy::single_match_else)]
     fn next_sub(&mut self) -> Result<Option<msg::UlogMessage>, ULogError> {
-        if self.state == State::HEADER  {
+        if self.state == State::HEADER {
             match self.read_file_header() {
                 Ok(header) => {
                     self.file_header = Some(header);
@@ -159,18 +167,18 @@ impl<R: Read> ULogParser<R> {
 
                     #[allow(clippy::redundant_else)]
                     if self.include_header {
-                        return Ok(Some(UlogMessage::Header(header)))
+                        return Ok(Some(UlogMessage::Header(header)));
                     } else {
                         //Fallthrough.
                     }
-                },
+                }
                 Err(_) => {
                     self.state = State::ERROR;
                     return Err(ULogError::InvalidHeader);
                 }
             }
         }
-        
+
         if self.state == State::EOF {
             return Ok(None);
         }
@@ -181,7 +189,7 @@ impl<R: Read> ULogParser<R> {
         let max_bytes_to_read = self.max_bytes_to_read;
 
         if let Some(max_bytes_to_read) = max_bytes_to_read {
-                if self.datastream.num_bytes_read >= max_bytes_to_read {
+            if self.datastream.num_bytes_read >= max_bytes_to_read {
                 self.state = State::EOF;
                 return Ok(None);
             }
@@ -192,7 +200,10 @@ impl<R: Read> ULogParser<R> {
                 self.state = State::EOF;
                 return Ok(None);
             }
-            Some(header) => (header.msg_type, self.read_message(header.msg_size as usize)?),
+            Some(header) => (
+                header.msg_type,
+                self.read_message(header.msg_size as usize)?,
+            ),
         };
 
         match self.state {
@@ -201,11 +212,10 @@ impl<R: Read> ULogParser<R> {
 
                 match msg {
                     UlogMessage::FormatDefinition(ref format) => {
-                        
                         if format.name.contains("heartbeat") {
                             println!("Heartbeat {format}");
                         }
-                        
+
                         self.formats.insert(format.name.clone(), format.clone());
                     }
                     UlogMessage::AddSubscription(ref sub) => {
@@ -213,7 +223,8 @@ impl<R: Read> ULogParser<R> {
                         self.subscription_filter.update_ids(&sub);
 
                         if sub.multi_id > 0 {
-                            self.message_name_with_multi_id.insert(sub.message_name.clone());
+                            self.message_name_with_multi_id
+                                .insert(sub.message_name.clone());
                         }
 
                         // Now that we've seen the first subscription message we can advance to state 'DATA.'
@@ -233,15 +244,14 @@ impl<R: Read> ULogParser<R> {
                         self.subscription_filter.update_ids(&sub);
 
                         if sub.multi_id > 0 {
-                            self.message_name_with_multi_id.insert(sub.message_name.clone());
+                            self.message_name_with_multi_id
+                                .insert(sub.message_name.clone());
                         }
                     }
                     UlogMessage::LoggedData(ref mut logged_data) => {
-                        logged_data.filter_fields(
-                            self.include_timestamp,
-                            self.include_padding);
+                        logged_data.filter_fields(self.include_timestamp, self.include_padding);
                     }
-                    _ =>  {}
+                    _ => {}
                 }
 
                 return Ok(Some(msg));
@@ -254,18 +264,25 @@ impl<R: Read> ULogParser<R> {
             }
         }
     }
-    
-    pub fn parse_data(&mut self, message_type: ULogMessageType, mut message_buf: MessageBuf) -> Result<UlogMessage, ULogError> {
+
+    pub fn parse_data(
+        &mut self,
+        message_type: ULogMessageType,
+        mut message_buf: MessageBuf,
+    ) -> Result<UlogMessage, ULogError> {
         match message_type {
             ULogMessageType::ADD_SUBSCRIPTION => {
                 let sub = self.parse_subscription(message_buf)?;
-                
-                Ok( msg::UlogMessage::AddSubscription(sub) )
+
+                Ok(msg::UlogMessage::AddSubscription(sub))
             }
             ULogMessageType::REMOVE_SUBSCRIPTION => {
                 let msg_id = message_buf.take_u16()?;
                 self.subscriptions.remove(&msg_id);
-                Ok(UlogMessage::Unhandled { msg_type: message_type.into(), message_contents: message_buf.into_remaining_bytes() })
+                Ok(UlogMessage::Unhandled {
+                    msg_type: message_type.into(),
+                    message_contents: message_buf.into_remaining_bytes(),
+                })
             }
             ULogMessageType::DATA => {
                 let msg_id = message_buf.take_u16()?;
@@ -273,9 +290,12 @@ impl<R: Read> ULogParser<R> {
                     if self.subscription_filter.is_allowed(sub.msg_id) {
                         let logged_data = self.parse_data_message(&sub, message_buf)?;
 
-                        return Ok( msg::UlogMessage::LoggedData(logged_data.clone()));
+                        return Ok(msg::UlogMessage::LoggedData(logged_data.clone()));
                     } else {
-                        return Ok(UlogMessage::Ignored { msg_type: message_type.into(), message_contents: message_buf.into_remaining_bytes() });
+                        return Ok(UlogMessage::Ignored {
+                            msg_type: message_type.into(),
+                            message_contents: message_buf.into_remaining_bytes(),
+                        });
                     }
                 } else {
                     return Err(ULogError::ParseError(format!(
@@ -283,28 +303,23 @@ impl<R: Read> ULogParser<R> {
                     )));
                 }
             }
-            ULogMessageType::LOGGING => {
-                Ok( msg::UlogMessage::LoggedString( msg::LoggedString {
-                    level: LogLevel::try_from(message_buf.take_u8()?)?,
-                    tag: None,
-                    timestamp: message_buf.take_u64()?,
-                    msg: String::from_utf8(message_buf.into_remaining_bytes())?,
-                }))
-            }
+            ULogMessageType::LOGGING => Ok(msg::UlogMessage::LoggedString(msg::LoggedString {
+                level: LogLevel::try_from(message_buf.take_u8()?)?,
+                tag: None,
+                timestamp: message_buf.take_u64()?,
+                msg: String::from_utf8(message_buf.into_remaining_bytes())?,
+            })),
             ULogMessageType::LOGGING_TAGGED => {
-                Ok( msg::UlogMessage::LoggedString( msg::LoggedString {
+                Ok(msg::UlogMessage::LoggedString(msg::LoggedString {
                     level: LogLevel::try_from(message_buf.take_u8()?)?,
-                    tag: Some(message_buf.take_u16()?,),
+                    tag: Some(message_buf.take_u16()?),
                     timestamp: message_buf.take_u64()?,
                     msg: String::from_utf8(message_buf.into_remaining_bytes())?,
-
                 }))
             }
-            ULogMessageType::DROPOUT => {
-                Ok( msg::UlogMessage::DropoutMark( Dropout {
-                    duration: message_buf.take_u16()?,
-                }))
-            },
+            ULogMessageType::DROPOUT => Ok(msg::UlogMessage::DropoutMark(Dropout {
+                duration: message_buf.take_u16()?,
+            })),
             // FIXME: Implement SYNC
             //ULogMessageType::SYNC => {}
             ULogMessageType::PARAMETER => {
@@ -325,12 +340,18 @@ impl<R: Read> ULogParser<R> {
             }
             _ => {
                 log::debug!("Received unhandled message type {message_type:?}. Ignoring.");
-                Ok(UlogMessage::Unhandled { msg_type: message_type.into(), message_contents: message_buf.into_remaining_bytes() })
+                Ok(UlogMessage::Unhandled {
+                    msg_type: message_type.into(),
+                    message_contents: message_buf.into_remaining_bytes(),
+                })
             }
         }
     }
 
-    fn parse_subscription(&self, mut message_buf: MessageBuf) -> Result<msg::Subscription, ULogError> {
+    fn parse_subscription(
+        &self,
+        mut message_buf: MessageBuf,
+    ) -> Result<msg::Subscription, ULogError> {
         let multi_id = message_buf.take_u8()?;
         let msg_id = message_buf.take_u16()?;
 
@@ -339,7 +360,7 @@ impl<R: Read> ULogParser<R> {
         // Force a lookup of the format and return an error if not found.
         let _format = self.get_format(&message_name)?;
 
-        Ok ( msg::Subscription {
+        Ok(msg::Subscription {
             multi_id,
             msg_id,
             message_name: message_name.clone(),
@@ -361,46 +382,51 @@ impl<R: Read> ULogParser<R> {
         Ok(Some(ULogMessageHeader { msg_size, msg_type }))
     }
 
-
-
-    fn parse_data_message(&self, sub: &msg::Subscription, mut message_buf: MessageBuf) -> Result<msg::LoggedData, ULogError> {
+    fn parse_data_message(
+        &self,
+        sub: &msg::Subscription,
+        mut message_buf: MessageBuf,
+    ) -> Result<msg::LoggedData, ULogError> {
         let format = self.get_format(&sub.message_name)?;
         let _message_len = message_buf.len();
 
         if !format.fields.iter().any(|f| f.name == "timestamp") {
             return Err(ULogError::MissingTimestamp);
         }
-        
+
         let mut data_format = self.parse_data_message_sub(&format, &mut message_buf)?;
 
         if self.message_name_with_multi_id.contains(&sub.message_name) {
             data_format.multi_id_index = Some(sub.multi_id);
         }
 
-        // ⚠️ The timestamp for this message is the value of the `timestamp` field from the top-level `data_format` 
+        // ⚠️ The timestamp for this message is the value of the `timestamp` field from the top-level `data_format`
         // returned by `parse_data_message_sub()`.  We now remove the field from `data_format` to avoid returning redundant timestamps.
         // See the comment in `parse_data_message_sub()` for more information.
         let timestamp = data_format.timestamp.ok_or(ULogError::MissingTimestamp)?;
-        
+
         if !message_buf.is_empty() {
             log::warn!("Leftover bytes in messagebuf after parsing LOGGED_DATA message! Possible data corruption.");
         }
 
-        Ok( msg::LoggedData {
-                timestamp,
-                msg_id: sub.msg_id,
-                data: data_format,
-            })
+        Ok(msg::LoggedData {
+            timestamp,
+            msg_id: sub.msg_id,
+            data: data_format,
+        })
     }
 
-    fn parse_data_message_sub(&self, format: &def::Format, message_buf: &mut MessageBuf) -> Result<inst::Format, ULogError> {
+    fn parse_data_message_sub(
+        &self,
+        format: &def::Format,
+        message_buf: &mut MessageBuf,
+    ) -> Result<inst::Format, ULogError> {
         let mut fields: Vec<inst::Field> = vec![];
-        let mut timestamp:Option<u64> = None;
+        let mut timestamp: Option<u64> = None;
 
         for field in &format.fields {
             // Easy case handle padding field.
             if field.name.starts_with("_padding") {
-
                 match field.r#type.array_size {
                     Some(array_size) => {
                         match array_size.cmp(&message_buf.len()) {
@@ -433,7 +459,7 @@ impl<R: Read> ULogParser<R> {
                 continue;
             }
 
-            let value:inst::FieldValue = self.parse_field_value(field, message_buf)?;
+            let value: inst::FieldValue = self.parse_field_value(field, message_buf)?;
 
             // ⚠️ Extract the timestamp field if present.
             // According to the ULOG spec, the timestamp for a LOGGED_DATA message is the value of
@@ -441,18 +467,17 @@ impl<R: Read> ULogParser<R> {
             // This function will extract all such fields, regardless of location in the Format hierarchy.
             // When this function returns, the top-level timestamp will then be extracted and assigned
             // to msg::LoggedData.timestamp. See: `parse_data_message()`
-            if let inst::FieldValue::ScalarU64(value) = value  {
-                if field.name == "timestamp"  {
+            if let inst::FieldValue::ScalarU64(value) = value {
+                if field.name == "timestamp" {
                     timestamp = Some(value);
                 }
             }
 
-            fields.push(
-                inst::Field {
-                    name: field.name.clone(),
-                    r#type: field.r#type.clone(),
-                    value,
-                });
+            fields.push(inst::Field {
+                name: field.name.clone(),
+                r#type: field.r#type.clone(),
+                value,
+            });
         }
 
         Ok(inst::Format {
@@ -473,30 +498,67 @@ impl<R: Read> ULogParser<R> {
         message_buf: &mut MessageBuf,
     ) -> Result<inst::FieldValue, ULogError> {
         match field.r#type.array_size {
-            None => { // scalar
+            None => {
+                // scalar
                 use def::BaseType::*;
                 match &field.r#type.base_type {
-                    UINT8 => Ok(inst::FieldValue::ScalarU8(parse_data_field::<u8>(field, message_buf)?)),
-                    UINT16 => Ok(inst::FieldValue::ScalarU16(parse_data_field::<u16>(field, message_buf)?)),
-                    UINT32 => Ok(inst::FieldValue::ScalarU32(parse_data_field::<u32>(field, message_buf)?)),
-                    UINT64 => Ok(inst::FieldValue::ScalarU64(parse_data_field::<u64>(field, message_buf)?)),
-                    INT8 => Ok(inst::FieldValue::ScalarI8(parse_data_field::<i8>(field, message_buf)?)),
-                    INT16 => Ok(inst::FieldValue::ScalarI16(parse_data_field::<i16>(field, message_buf)?)),
-                    INT32 => Ok(inst::FieldValue::ScalarI32(parse_data_field::<i32>(field, message_buf)?)),
-                    INT64 => Ok(inst::FieldValue::ScalarI64(parse_data_field::<i64>(field, message_buf)?)),
-                    FLOAT => Ok(inst::FieldValue::ScalarF32(parse_data_field::<f32>(field, message_buf)?)),
-                    DOUBLE => Ok(inst::FieldValue::ScalarF64(parse_data_field::<f64>(field, message_buf)?)),
-                    BOOL => Ok(inst::FieldValue::ScalarBool(parse_data_field::<bool>(field, message_buf)?)),
-                    CHAR => Ok(inst::FieldValue::ScalarChar(parse_data_field::<char>(field, message_buf)?)),
+                    UINT8 => Ok(inst::FieldValue::ScalarU8(parse_data_field::<u8>(
+                        field,
+                        message_buf,
+                    )?)),
+                    UINT16 => Ok(inst::FieldValue::ScalarU16(parse_data_field::<u16>(
+                        field,
+                        message_buf,
+                    )?)),
+                    UINT32 => Ok(inst::FieldValue::ScalarU32(parse_data_field::<u32>(
+                        field,
+                        message_buf,
+                    )?)),
+                    UINT64 => Ok(inst::FieldValue::ScalarU64(parse_data_field::<u64>(
+                        field,
+                        message_buf,
+                    )?)),
+                    INT8 => Ok(inst::FieldValue::ScalarI8(parse_data_field::<i8>(
+                        field,
+                        message_buf,
+                    )?)),
+                    INT16 => Ok(inst::FieldValue::ScalarI16(parse_data_field::<i16>(
+                        field,
+                        message_buf,
+                    )?)),
+                    INT32 => Ok(inst::FieldValue::ScalarI32(parse_data_field::<i32>(
+                        field,
+                        message_buf,
+                    )?)),
+                    INT64 => Ok(inst::FieldValue::ScalarI64(parse_data_field::<i64>(
+                        field,
+                        message_buf,
+                    )?)),
+                    FLOAT => Ok(inst::FieldValue::ScalarF32(parse_data_field::<f32>(
+                        field,
+                        message_buf,
+                    )?)),
+                    DOUBLE => Ok(inst::FieldValue::ScalarF64(parse_data_field::<f64>(
+                        field,
+                        message_buf,
+                    )?)),
+                    BOOL => Ok(inst::FieldValue::ScalarBool(parse_data_field::<bool>(
+                        field,
+                        message_buf,
+                    )?)),
+                    CHAR => Ok(inst::FieldValue::ScalarChar(parse_data_field::<char>(
+                        field,
+                        message_buf,
+                    )?)),
                     OTHER(type_name) => {
                         let child_format = &self.get_format(type_name)?;
-                        Ok(inst::FieldValue::ScalarOther(self.parse_data_message_sub(child_format, message_buf)?))
+                        Ok(inst::FieldValue::ScalarOther(
+                            self.parse_data_message_sub(child_format, message_buf)?,
+                        ))
                     }
                 }
             }
-            Some(array_size) => {
-                self.parse_array_field(field, array_size, message_buf)
-            }
+            Some(array_size) => self.parse_array_field(field, array_size, message_buf),
         }
     }
 
@@ -504,26 +566,78 @@ impl<R: Read> ULogParser<R> {
         &self,
         field: &def::Field,
         array_size: usize,
-        message_buf: &mut MessageBuf
+        message_buf: &mut MessageBuf,
     ) -> Result<inst::FieldValue, ULogError> {
         use def::BaseType::*;
 
         match &field.r#type.base_type {
-            UINT8 => Ok(inst::FieldValue::ArrayU8(parse_array(array_size, message_buf, |buf| parse_data_field::<u8>(field, buf))?)),
-            UINT16 => Ok(inst::FieldValue::ArrayU16(parse_array(array_size, message_buf, |buf| parse_data_field::<u16>(field, buf))?)),
-            UINT32 => Ok(inst::FieldValue::ArrayU32(parse_array(array_size, message_buf, |buf| parse_data_field::<u32>(field, buf))?)),
-            UINT64 => Ok(inst::FieldValue::ArrayU64(parse_array(array_size, message_buf, |buf| parse_data_field::<u64>(field, buf))?)),
-            INT8 => Ok(inst::FieldValue::ArrayI8(parse_array(array_size, message_buf, |buf| parse_data_field::<i8>(field, buf))?)),
-            INT16 => Ok(inst::FieldValue::ArrayI16(parse_array(array_size, message_buf, |buf| parse_data_field::<i16>(field, buf))?)),
-            INT32 => Ok(inst::FieldValue::ArrayI32(parse_array(array_size, message_buf, |buf| parse_data_field::<i32>(field, buf))?)),
-            INT64 => Ok(inst::FieldValue::ArrayI64(parse_array(array_size, message_buf, |buf| parse_data_field::<i64>(field, buf))?)),
-            FLOAT => Ok(inst::FieldValue::ArrayF32(parse_array(array_size, message_buf, |buf| parse_data_field::<f32>(field, buf))?)),
-            DOUBLE => Ok(inst::FieldValue::ArrayF64(parse_array(array_size, message_buf, |buf| parse_data_field::<f64>(field, buf))?)),
-            BOOL => Ok(inst::FieldValue::ArrayBool(parse_array(array_size, message_buf, |buf| parse_data_field::<bool>(field, buf))?)),
-            CHAR => Ok(inst::FieldValue::ArrayChar(parse_array(array_size, message_buf, |buf| parse_data_field::<char>(field, buf))?)),
+            UINT8 => Ok(inst::FieldValue::ArrayU8(parse_array(
+                array_size,
+                message_buf,
+                |buf| parse_data_field::<u8>(field, buf),
+            )?)),
+            UINT16 => Ok(inst::FieldValue::ArrayU16(parse_array(
+                array_size,
+                message_buf,
+                |buf| parse_data_field::<u16>(field, buf),
+            )?)),
+            UINT32 => Ok(inst::FieldValue::ArrayU32(parse_array(
+                array_size,
+                message_buf,
+                |buf| parse_data_field::<u32>(field, buf),
+            )?)),
+            UINT64 => Ok(inst::FieldValue::ArrayU64(parse_array(
+                array_size,
+                message_buf,
+                |buf| parse_data_field::<u64>(field, buf),
+            )?)),
+            INT8 => Ok(inst::FieldValue::ArrayI8(parse_array(
+                array_size,
+                message_buf,
+                |buf| parse_data_field::<i8>(field, buf),
+            )?)),
+            INT16 => Ok(inst::FieldValue::ArrayI16(parse_array(
+                array_size,
+                message_buf,
+                |buf| parse_data_field::<i16>(field, buf),
+            )?)),
+            INT32 => Ok(inst::FieldValue::ArrayI32(parse_array(
+                array_size,
+                message_buf,
+                |buf| parse_data_field::<i32>(field, buf),
+            )?)),
+            INT64 => Ok(inst::FieldValue::ArrayI64(parse_array(
+                array_size,
+                message_buf,
+                |buf| parse_data_field::<i64>(field, buf),
+            )?)),
+            FLOAT => Ok(inst::FieldValue::ArrayF32(parse_array(
+                array_size,
+                message_buf,
+                |buf| parse_data_field::<f32>(field, buf),
+            )?)),
+            DOUBLE => Ok(inst::FieldValue::ArrayF64(parse_array(
+                array_size,
+                message_buf,
+                |buf| parse_data_field::<f64>(field, buf),
+            )?)),
+            BOOL => Ok(inst::FieldValue::ArrayBool(parse_array(
+                array_size,
+                message_buf,
+                |buf| parse_data_field::<bool>(field, buf),
+            )?)),
+            CHAR => Ok(inst::FieldValue::ArrayChar(parse_array(
+                array_size,
+                message_buf,
+                |buf| parse_data_field::<char>(field, buf),
+            )?)),
             OTHER(type_name) => {
                 let child_format = &self.get_format(type_name)?;
-                Ok(inst::FieldValue::ArrayOther(parse_array(array_size, message_buf, |buf| self.parse_data_message_sub(child_format, buf))?))
+                Ok(inst::FieldValue::ArrayOther(parse_array(
+                    array_size,
+                    message_buf,
+                    |buf| self.parse_data_message_sub(child_format, buf),
+                )?))
             }
         }
     }
@@ -533,10 +647,10 @@ impl<R: Read> ULogParser<R> {
         self.datastream.read_exact(&mut msg_header)?;
 
         if msg_header[0..7] != MAGIC {
-            return Err( ULogError::InvalidMagicBits);
+            return Err(ULogError::InvalidMagicBits);
         }
 
-        let file_version:u8 = msg_header[7];
+        let file_version: u8 = msg_header[7];
         let file_start_time = LittleEndian::read_u64(&msg_header[8..16]);
 
         Ok(FileHeader {
@@ -545,19 +659,25 @@ impl<R: Read> ULogParser<R> {
         })
     }
 
-    fn parse_definition(&mut self, message_type: ULogMessageType, message_buf: MessageBuf) -> Result<msg::UlogMessage, ULogError> {
+    fn parse_definition(
+        &mut self,
+        message_type: ULogMessageType,
+        message_buf: MessageBuf,
+    ) -> Result<msg::UlogMessage, ULogError> {
         match message_type {
             ULogMessageType::FLAG_BITS => {
-
                 let flag_bits = self.parse_flag_bits(message_buf)?;
 
                 if flag_bits.has_data_appended() {
                     // Stop reading from this stream at the first non-zero appended data offset in the list.
-                    self.max_bytes_to_read =
-                        flag_bits.appended_data_offsets.iter().find(|&&offset| offset > 0).map(|&offset| offset as usize);
+                    self.max_bytes_to_read = flag_bits
+                        .appended_data_offsets
+                        .iter()
+                        .find(|&&offset| offset > 0)
+                        .map(|&offset| offset as usize);
                 }
-                
-                Ok( UlogMessage::FlagBits(flag_bits))
+
+                Ok(UlogMessage::FlagBits(flag_bits))
             }
             ULogMessageType::FORMAT => {
                 let format = parse_format(message_buf)?;
@@ -590,83 +710,96 @@ impl<R: Read> ULogParser<R> {
              */
             ULogMessageType::UNKNOWN(byte) => {
                 log::warn!("Unknown message type: 0x{byte:02X}");
-                Ok(UlogMessage::Unhandled { msg_type: message_type.into(), message_contents: message_buf.into_remaining_bytes() })
+                Ok(UlogMessage::Unhandled {
+                    msg_type: message_type.into(),
+                    message_contents: message_buf.into_remaining_bytes(),
+                })
             }
             _ => {
-                // FIXME: Handle other variants in definitions section. 
-                Ok( UlogMessage::Unhandled { msg_type: message_type.into(), message_contents: message_buf.into_remaining_bytes() } )
+                // FIXME: Handle other variants in definitions section.
+                Ok(UlogMessage::Unhandled {
+                    msg_type: message_type.into(),
+                    message_contents: message_buf.into_remaining_bytes(),
+                })
             }
         }
     }
-    
 
     #[allow(clippy::unused_self)]
     fn parse_flag_bits(&self, mut message_buf: MessageBuf) -> Result<FlagBits, ULogError> {
         if message_buf.len() != 40 {
-            log::warn!("Length of flag bits >40bytes (Contained {len} extra bytes).  Ignoring.", len = message_buf.len());
+            log::warn!(
+                "Length of flag bits >40bytes (Contained {len} extra bytes).  Ignoring.",
+                len = message_buf.len()
+            );
         }
 
         // Unwrap is ok because of the len of the array returned by advance is guaranteed to be 8.
         let compat_flags: [u8; 8] = message_buf.advance(8)?.try_into().unwrap();
 
         // Unwrap is ok because of the len of the array returned by advance is guaranteed to be 8.
-        let incompat_flags:[u8; 8] = message_buf.advance(8)?.try_into().unwrap();
+        let incompat_flags: [u8; 8] = message_buf.advance(8)?.try_into().unwrap();
 
         // Check for any unknown bits in incompat_flags
         let has_unknown_incompat_bits = incompat_flags.iter().skip(1).any(|&f| f != 0);
-        
+
         if has_unknown_incompat_bits {
             return Err(ULogError::UnknownIncompatBits);
         }
 
-        let mut appended_data_offsets:[u64;3] = [0, 0, 0];
+        let mut appended_data_offsets: [u64; 3] = [0, 0, 0];
         for i in 0..3 {
             appended_data_offsets[i] = message_buf.take_u64()?;
         }
 
-        Ok( FlagBits {
+        Ok(FlagBits {
             compat_flags,
             incompat_flags,
             appended_data_offsets,
         })
     }
-    
+
     pub(crate) fn parse_info(&self, mut message_buf: MessageBuf) -> Result<msg::Info, ULogError> {
         let key_len = message_buf.take_u8()? as usize;
         let raw_key = String::from_utf8(message_buf.advance(key_len)?.to_vec())?;
         let mut tokens = TokenList::from_str(&raw_key);
         let field = parse_field(&mut tokens)?;
 
-        let value:inst::FieldValue = self.parse_field_value(&field, &mut message_buf)?;
+        let value: inst::FieldValue = self.parse_field_value(&field, &mut message_buf)?;
 
         log::debug!("INFO {:?} {}:\t{}", field.r#type, &field.name, value);
 
-        Ok(msg::Info { key: field.name, r#type: field.r#type, value })
+        Ok(msg::Info {
+            key: field.name,
+            r#type: field.r#type,
+            value,
+        })
     }
 
-    pub(crate) fn parse_multi_info(&mut self, mut message_buf: MessageBuf) -> Result<msg::MultiInfo, ULogError> {
+    pub(crate) fn parse_multi_info(
+        &mut self,
+        mut message_buf: MessageBuf,
+    ) -> Result<msg::MultiInfo, ULogError> {
         let is_continued = message_buf.take_u8()? != 0;
         let key_len = message_buf.take_u8()? as usize;
         let raw_key = String::from_utf8(message_buf.advance(key_len)?.to_vec())?;
         let mut tokens = TokenList::from_str(&raw_key);
         let field = parse_field(&mut tokens)?;
 
-        let value:inst::FieldValue = self.parse_field_value(&field, &mut message_buf)?;
+        let value: inst::FieldValue = self.parse_field_value(&field, &mut message_buf)?;
 
         log::debug!("MULTI_INFO {:?} {}:\t{}", field.r#type, &field.name, value);
         log::debug!("is_continued = {is_continued}");
 
-        let result: MultiInfo =
-            MultiInfo {
-                key: field.name,
-                r#type: field.r#type,
-                value,
-                is_continued,
-            };
+        let result: MultiInfo = MultiInfo {
+            key: field.name,
+            r#type: field.r#type,
+            value,
+            is_continued,
+        };
 
         Ok(result)
     }
-
 
     fn parse_parameter(&self, mut message_buf: MessageBuf) -> Result<msg::Parameter, ULogError> {
         let key_len = message_buf.take_u8()? as usize;
@@ -675,9 +808,13 @@ impl<R: Read> ULogParser<R> {
         let field = parse_field(&mut tokens)?;
 
         if field.r#type.is_array() {
-            return Err(ULogError::UnknownParameterType(format!("Received default parameter message with type ARRAY ({raw_key}). Ignoring.").to_owned()))
-        }
-        else {
+            return Err(ULogError::UnknownParameterType(
+                format!(
+                    "Received default parameter message with type ARRAY ({raw_key}). Ignoring."
+                )
+                .to_owned(),
+            ));
+        } else {
             let value: inst::ParameterValue = match field.r#type.base_type {
                 BaseType::INT32 => { inst::ParameterValue::INT32(parse_data_field::<i32>(&field, &mut message_buf)?) }
                 BaseType::FLOAT => { inst::ParameterValue::FLOAT(parse_data_field::<f32>(&field, &mut message_buf)?) }
@@ -696,7 +833,10 @@ impl<R: Read> ULogParser<R> {
         }
     }
 
-    fn parse_default_parameter(&self, mut message_buf: MessageBuf) -> Result<msg::DefaultParameter, ULogError> {
+    fn parse_default_parameter(
+        &self,
+        mut message_buf: MessageBuf,
+    ) -> Result<msg::DefaultParameter, ULogError> {
         let default_types = message_buf.take_u8()?; // read the default_types bitfield
         let key_len = message_buf.take_u8()? as usize;
         let raw_key = String::from_utf8(message_buf.advance(key_len)?.to_vec())?;
@@ -704,9 +844,13 @@ impl<R: Read> ULogParser<R> {
         let field = parse_field(&mut tokens)?;
 
         if field.r#type.is_array() {
-            return Err(ULogError::UnknownParameterType(format!("Received default parameter message with type ARRAY ({raw_key}). Ignoring.").to_owned()))
-        }
-        else {
+            return Err(ULogError::UnknownParameterType(
+                format!(
+                    "Received default parameter message with type ARRAY ({raw_key}). Ignoring."
+                )
+                .to_owned(),
+            ));
+        } else {
             let value: inst::ParameterValue = match field.r#type.base_type {
                 BaseType::INT32 => { inst::ParameterValue::INT32(parse_data_field::<i32>(&field, &mut message_buf)?) }
                 BaseType::FLOAT => { inst::ParameterValue::FLOAT(parse_data_field::<f32>(&field, &mut message_buf)?) }
@@ -733,7 +877,7 @@ pub struct ULogMessageHeader {
     pub msg_type: ULogMessageType,
 }
 
-#[derive(Debug,Copy,Clone)]
+#[derive(Debug, Copy, Clone)]
 #[repr(u8)]
 pub enum ULogMessageType {
     FORMAT = b'F',
@@ -770,9 +914,7 @@ impl From<u8> for ULogMessageType {
             b'L' => ULogMessageType::LOGGING,
             b'C' => ULogMessageType::LOGGING_TAGGED,
             b'B' => ULogMessageType::FLAG_BITS,
-            _ => {
-                ULogMessageType::UNKNOWN(byte)
-            }
+            _ => ULogMessageType::UNKNOWN(byte),
         }
     }
 }
@@ -799,13 +941,12 @@ impl From<ULogMessageType> for u8 {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use std::io;
-    use crate::encode::Encode;
     use super::*;
-    
+    use crate::encode::Encode;
+    use std::io;
+
     impl<R: std::io::Read> ULogParser<R> {
         pub fn insert_format(&mut self, message_name: &str, format: def::Format) {
             self.formats.insert(message_name.to_string(), format);
@@ -818,15 +959,20 @@ mod tests {
         let message_buf = MessageBuf::from_vec(input.to_vec());
 
         let parsed_format = parse_format(message_buf).unwrap();
-        
-        let mut emitted_bytes = Vec::new();
-        parsed_format.encode(&mut emitted_bytes).expect("Unable to encode format?!");
 
-        println!("re_emitted_bytes: {:?}", String::from_utf8(emitted_bytes.clone()).unwrap());
+        let mut emitted_bytes = Vec::new();
+        parsed_format
+            .encode(&mut emitted_bytes)
+            .expect("Unable to encode format?!");
+
+        println!(
+            "re_emitted_bytes: {:?}",
+            String::from_utf8(emitted_bytes.clone()).unwrap()
+        );
 
         assert_eq!(emitted_bytes, input);
     }
-    
+
     #[test]
     fn test_round_trip_subscription() {
         //  \x0A    \x01\x00  my_message
@@ -837,21 +983,28 @@ mod tests {
 
         let mut parser = ULogParser::new(cursor).expect("Unable to create ULogParser");
 
-        parser.insert_format("my_message", def::Format{
-            name: "".to_string(),
-            fields: vec![],
-            padding: 0,
-        });
+        parser.insert_format(
+            "my_message",
+            def::Format {
+                name: "".to_string(),
+                fields: vec![],
+                padding: 0,
+            },
+        );
 
         // MessageBuf should not contain the header bytes, which is why initialise it from byte 3 onwards.
         let message_buf = MessageBuf::from_vec(input_bytes.to_vec());
 
         // Parse the Subscription
-        let parsed_subscription = parser.parse_subscription(message_buf).expect("Unable to parse subscription");
+        let parsed_subscription = parser
+            .parse_subscription(message_buf)
+            .expect("Unable to parse subscription");
         println!("parsed_subscription: {:?}", parsed_subscription);
 
         let mut emitted_bytes = Vec::new();
-        parsed_subscription.encode(&mut emitted_bytes).expect("Unable to encode subscription?!");
+        parsed_subscription
+            .encode(&mut emitted_bytes)
+            .expect("Unable to encode subscription?!");
 
         println!("Emitted bytes: {:?}", emitted_bytes);
 

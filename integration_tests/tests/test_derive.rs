@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::BufReader;
-use yule_log::{ULogData, ULogMessages};
 use yule_log::model::msg::UlogMessage;
+use yule_log::{ULogData, ULogMessages};
 
 #[derive(ULogMessages)]
 pub enum LoggedMessages {
@@ -46,7 +46,9 @@ fn test_derive() -> Result<(), Box<dyn std::error::Error>> {
     for msg_res in stream {
         let msg = msg_res?;
         match msg {
-            LoggedMessages::VehicleLocalPosition(v) if vehicle_positions.len() < MAX_VEHICLE_POS => {
+            LoggedMessages::VehicleLocalPosition(v)
+                if vehicle_positions.len() < MAX_VEHICLE_POS =>
+            {
                 println!("Vehicle Local Position: {v:?}");
                 vehicle_positions.push(v);
             }
@@ -91,11 +93,15 @@ fn test_derive() -> Result<(), Box<dyn std::error::Error>> {
     let expected_actuator_outputs = vec![
         ActuatorOutputs {
             timestamp: 20305329,
-            output: vec![1596.0, 1491.0, 950.0, 1508.0, 1031.0, 1002.0, 1000.0, 1023.0],
+            output: vec![
+                1596.0, 1491.0, 950.0, 1508.0, 1031.0, 1002.0, 1000.0, 1023.0,
+            ],
         },
         ActuatorOutputs {
             timestamp: 20483329,
-            output: vec![1597.0, 1491.0, 950.0, 1508.0, 1031.0, 1002.0, 1000.0, 1025.0],
+            output: vec![
+                1597.0, 1491.0, 950.0, 1508.0, 1031.0, 1002.0, 1000.0, 1025.0,
+            ],
         },
     ];
 
@@ -117,7 +123,6 @@ fn test_derive() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 fn test_add_subscription() -> Result<(), Box<dyn std::error::Error>> {
-
     #[derive(ULogMessages)]
     #[allow(dead_code)]
     pub enum LoggedMessages {
@@ -134,9 +139,8 @@ fn test_add_subscription() -> Result<(), Box<dyn std::error::Error>> {
         z: f32,
     }
 
-    let reader = BufReader::new(
-        File::open("../core/test_data/input/sample_log_small.ulg").unwrap()
-    );
+    let reader =
+        BufReader::new(File::open("../core/test_data/input/sample_log_small.ulg").unwrap());
 
     const EXTRA_SUBSCR_NAME: &'static str = "vehicle_gps_position";
 
@@ -147,14 +151,16 @@ fn test_add_subscription() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut gps_message_present: bool = false;
     let mut vehicle_position_present: bool = false;
-   
+
     // Confirm that messages like "vehicle_gps_position" never appear
     for msg_res in stream {
         match msg_res {
-            Ok(LoggedMessages::Other(UlogMessage::LoggedData(data))) if data.data.name == EXTRA_SUBSCR_NAME => {
+            Ok(LoggedMessages::Other(UlogMessage::LoggedData(data)))
+                if data.data.name == EXTRA_SUBSCR_NAME =>
+            {
                 gps_message_present = true;
                 println!("{data:?}");
-                
+
                 if vehicle_position_present {
                     break;
                 }
@@ -170,14 +176,19 @@ fn test_add_subscription() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    assert!(gps_message_present, "Expected at least one `vehicle_gps_position` logged message.");
-    assert!(vehicle_position_present, "Expected to receive at least one`vehicle_position` message.");
-    Ok( () )
+    assert!(
+        gps_message_present,
+        "Expected at least one `vehicle_gps_position` logged message."
+    );
+    assert!(
+        vehicle_position_present,
+        "Expected to receive at least one`vehicle_position` message."
+    );
+    Ok(())
 }
 
 #[test]
 fn test_fwd_subscriptions() -> Result<(), Box<dyn std::error::Error>> {
-
     #[derive(ULogMessages)]
     #[allow(dead_code)]
     pub enum LoggedMessages {
@@ -194,9 +205,8 @@ fn test_fwd_subscriptions() -> Result<(), Box<dyn std::error::Error>> {
         z: f32,
     }
 
-    let reader = BufReader::new(
-        File::open("../core/test_data/input/sample_log_small.ulg").unwrap()
-    );
+    let reader =
+        BufReader::new(File::open("../core/test_data/input/sample_log_small.ulg").unwrap());
 
     let stream = LoggedMessages::builder(reader)
         .forward_subscriptions(true)?
@@ -205,22 +215,22 @@ fn test_fwd_subscriptions() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut add_subscription_message_present: bool = false;
     let mut vehicle_position_present: bool = false;
-    
+
     // Confirm that we receive at least one AddSubscription messages.
     for msg_res in stream {
         match msg_res {
             Ok(LoggedMessages::Other(UlogMessage::AddSubscription(sub))) => {
                 add_subscription_message_present = true;
                 println!("{sub:?}");
-                
+
                 if vehicle_position_present {
                     break;
                 }
             }
             Ok(LoggedMessages::VehicleLocalPosition(_v)) => {
                 vehicle_position_present = true;
-                
-                if add_subscription_message_present { 
+
+                if add_subscription_message_present {
                     break;
                 }
             }
@@ -228,10 +238,16 @@ fn test_fwd_subscriptions() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    assert!(add_subscription_message_present, "Expected at least one AddSubscription message.");
-    assert!(vehicle_position_present, "Expected to receive at least one`vehicle_position` message.");
-    
-    Ok( () )
+    assert!(
+        add_subscription_message_present,
+        "Expected at least one AddSubscription message."
+    );
+    assert!(
+        vehicle_position_present,
+        "Expected to receive at least one`vehicle_position` message."
+    );
+
+    Ok(())
 }
 
 #[test]
@@ -262,11 +278,11 @@ fn test_extend_subscriptions() -> Result<(), Box<dyn std::error::Error>> {
     struct Flags {
         gps_seen: bool,
         att_seen: bool,
-        pos_seen: bool, 
+        pos_seen: bool,
     }
-    
+
     let mut flags = Flags::default();
-    
+
     impl Flags {
         pub fn all_seen(&self) -> bool {
             self.gps_seen && self.att_seen && self.pos_seen
@@ -278,21 +294,22 @@ fn test_extend_subscriptions() -> Result<(), Box<dyn std::error::Error>> {
         match msg {
             LoggedMessages::VehicleLocalPosition(v) => {
                 flags.pos_seen = true;
-                println!("VehicleLocalPosition: {}: x={} y={} z={}", v.timestamp, v.x, v.y, v.z);
+                println!(
+                    "VehicleLocalPosition: {}: x={} y={} z={}",
+                    v.timestamp, v.x, v.y, v.z
+                );
             }
-            LoggedMessages::Other(UlogMessage::LoggedData(data)) => {
-                match data.data.name.as_str() {
-                    "vehicle_gps_position" => {
-                        flags.gps_seen = true;
-                        println!("Extra GPS LoggedData: {:?}", data);
-                    }
-                    "vehicle_attitude" => {
-                        flags.att_seen = true;
-                        println!("Extra Attitude LoggedData: {:?}", data);
-                    }
-                    _ => {}
+            LoggedMessages::Other(UlogMessage::LoggedData(data)) => match data.data.name.as_str() {
+                "vehicle_gps_position" => {
+                    flags.gps_seen = true;
+                    println!("Extra GPS LoggedData: {:?}", data);
                 }
-            }
+                "vehicle_attitude" => {
+                    flags.att_seen = true;
+                    println!("Extra Attitude LoggedData: {:?}", data);
+                }
+                _ => {}
+            },
             _ => {}
         }
 
@@ -301,13 +318,21 @@ fn test_extend_subscriptions() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    assert!(flags.gps_seen, "Expected at least one 'vehicle_gps_position' message.");
-    assert!(flags.att_seen, "Expected at least one 'vehicle_attitude' message.");
-    assert!(flags.pos_seen, "Expected at least one VehicleLocalPosition message.");
+    assert!(
+        flags.gps_seen,
+        "Expected at least one 'vehicle_gps_position' message."
+    );
+    assert!(
+        flags.att_seen,
+        "Expected at least one 'vehicle_attitude' message."
+    );
+    assert!(
+        flags.pos_seen,
+        "Expected at least one VehicleLocalPosition message."
+    );
 
     Ok(())
 }
-
 
 #[test]
 /// Test the code which we include in the README to ensure it compiles.
@@ -335,7 +360,7 @@ fn readme_example() -> Result<(), Box<dyn std::error::Error>> {
         pub timestamp: u64,
         pub output: Vec<f32>,
     }
-    
+
     let reader = BufReader::new(File::open("../core/test_data/input/sample_log_small.ulg")?);
 
     let stream = LoggedMessages::stream(reader)?;
@@ -345,12 +370,13 @@ fn readme_example() -> Result<(), Box<dyn std::error::Error>> {
 
         match msg {
             LoggedMessages::VehicleLocalPosition(v) => {
-                println!("VehicleLocalPosition: {}: x={} y={} z={}",
-                         v.timestamp, v.x, v.y, v.z);
+                println!(
+                    "VehicleLocalPosition: {}: x={} y={} z={}",
+                    v.timestamp, v.x, v.y, v.z
+                );
             }
             LoggedMessages::ActuatorOutputs(a) => {
-                println!("ActuatorOutputs: {}: {:?}",
-                         a.timestamp, a.output);
+                println!("ActuatorOutputs: {}: {:?}", a.timestamp, a.output);
             }
             LoggedMessages::Other(msg) => {
                 if let UlogMessage::Info(info) = msg {
@@ -386,14 +412,17 @@ fn readme_builder_example() -> Result<(), Box<dyn std::error::Error>> {
 
     let stream = LoggedMessages::builder(reader)
         .add_subscription("vehicle_gps_position")? // Add extra subscription
-        .forward_subscriptions(true)?              // Forward AddSubscription messages
-        .stream()?;                                // Create the iterator
+        .forward_subscriptions(true)? // Forward AddSubscription messages
+        .stream()?; // Create the iterator
 
     for msg_res in stream {
         let msg = msg_res?;
         match msg {
             LoggedMessages::VehicleLocalPosition(v) => {
-                println!("VehicleLocalPosition: {}: x={} y={} z={}", v.timestamp, v.x, v.y, v.z);
+                println!(
+                    "VehicleLocalPosition: {}: x={} y={} z={}",
+                    v.timestamp, v.x, v.y, v.z
+                );
             }
             LoggedMessages::Other(UlogMessage::AddSubscription(sub)) => {
                 println!("AddSubscription message: {:?}", sub);

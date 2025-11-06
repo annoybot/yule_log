@@ -104,7 +104,7 @@ impl MessageBuf {
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
-    
+
     /// Consumes the `MessageBuf` and returns the remaining bytes starting from the current index.
     ///
     /// After calling this method, the `MessageBuf` is invalidated and can no longer be used.
@@ -144,8 +144,7 @@ impl MessageBuf {
     /// A `Result` containing the next `u16` value or an error message if
     /// the buffer is exhausted.
     pub fn take_u16(&mut self) -> Result<u16, ULogError> {
-        self.advance(size_of::<u16>())
-            .map(LittleEndian::read_u16)
+        self.advance(size_of::<u16>()).map(LittleEndian::read_u16)
     }
 
     /// Takes the next `i16` value (in little-endian format) from the buffer
@@ -156,8 +155,7 @@ impl MessageBuf {
     /// A `Result` containing the next `i16` value or an error message if
     /// the buffer is exhausted.
     pub fn take_i16(&mut self) -> Result<i16, ULogError> {
-        self.advance(size_of::<i16>())
-            .map(LittleEndian::read_i16)
+        self.advance(size_of::<i16>()).map(LittleEndian::read_i16)
     }
 
     /// Takes the next `u32` value (in little-endian format) from the buffer
@@ -168,8 +166,7 @@ impl MessageBuf {
     /// A `Result` containing the next `u32` value or an error message if
     /// the buffer is exhausted.
     pub fn take_u32(&mut self) -> Result<u32, ULogError> {
-        self.advance(size_of::<u32>())
-            .map(LittleEndian::read_u32)
+        self.advance(size_of::<u32>()).map(LittleEndian::read_u32)
     }
 
     /// Takes the next `i32` value (in little-endian format) from the buffer
@@ -180,8 +177,7 @@ impl MessageBuf {
     /// A `Result` containing the next `i32` value or an error message if
     /// the buffer is exhausted.
     pub fn take_i32(&mut self) -> Result<i32, ULogError> {
-        self.advance(size_of::<i32>())
-            .map(LittleEndian::read_i32)
+        self.advance(size_of::<i32>()).map(LittleEndian::read_i32)
     }
 
     /// Takes the next `u64` value (in little-endian format) from the buffer
@@ -192,8 +188,7 @@ impl MessageBuf {
     /// A `Result` containing the next `u64` value or an error message if
     /// the buffer is exhausted.
     pub fn take_u64(&mut self) -> Result<u64, ULogError> {
-        self.advance(size_of::<u64>())
-            .map(LittleEndian::read_u64)
+        self.advance(size_of::<u64>()).map(LittleEndian::read_u64)
     }
 
     /// Takes the next `i64` value (in little-endian format) from the buffer
@@ -204,8 +199,7 @@ impl MessageBuf {
     /// A `Result` containing the next `i64` value or an error message if
     /// the buffer is exhausted.
     pub fn take_i64(&mut self) -> Result<i64, ULogError> {
-        self.advance(size_of::<i64>())
-            .map(LittleEndian::read_i64)
+        self.advance(size_of::<i64>()).map(LittleEndian::read_i64)
     }
 
     /// Takes the next `f32` value (in little-endian format) from the buffer
@@ -216,8 +210,7 @@ impl MessageBuf {
     /// A `Result` containing the next `f32` value or an error message if
     /// the buffer is exhausted.
     pub fn take_f32(&mut self) -> Result<f32, ULogError> {
-        self.advance(size_of::<f32>())
-            .map(LittleEndian::read_f32)
+        self.advance(size_of::<f32>()).map(LittleEndian::read_f32)
     }
 
     /// Takes the next `f64` value (in little-endian format) from the buffer
@@ -228,8 +221,7 @@ impl MessageBuf {
     /// A `Result` containing the next `f64` value or an error message if
     /// the buffer is exhausted.
     pub fn take_f64(&mut self) -> Result<f64, ULogError> {
-        self.advance(size_of::<f64>())
-            .map(LittleEndian::read_f64)
+        self.advance(size_of::<f64>()).map(LittleEndian::read_f64)
     }
 
     /// Takes the next `bool` value from the buffer and advances the index.

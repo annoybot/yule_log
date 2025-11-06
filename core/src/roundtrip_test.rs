@@ -1,12 +1,12 @@
 #[cfg(test)]
 mod tests {
+    use crate::builder::ULogParserBuilder;
+    use crate::encode::Encode;
     use std::env;
     use std::fs;
     use std::fs::File;
     use std::io::{self, BufReader, Read};
     use std::path::{Path, PathBuf};
-    use crate::builder::ULogParserBuilder;
-    use crate::encode::Encode;
 
     #[derive(Debug)]
     struct TestResult {
@@ -24,7 +24,8 @@ mod tests {
             let entry = entry.expect("Failed to read ulg input file");
             let input_path = entry.path();
 
-            let reader = BufReader::new(File::open(&input_path).expect("Failed to open input file"));
+            let reader =
+                BufReader::new(File::open(&input_path).expect("Failed to open input file"));
 
             let parser = ULogParserBuilder::new(reader)
                 .include_header(true)
@@ -41,7 +42,7 @@ mod tests {
                 .expect("Failed to convert basename to string");
             let output_filename = basename.to_owned() + "_export";
             let output_filename = format!("test_{}", output_filename);
-            
+
             let output_path = Path::new(&env::temp_dir())
                 .join(output_filename)
                 .with_extension("ulg");
@@ -52,7 +53,9 @@ mod tests {
                 let ulog_message = result.expect("Failed to parse message");
 
                 // Use the new Encode trait's encode method directly
-                ulog_message.encode(&mut output_file).expect("Encoding failed");
+                ulog_message
+                    .encode(&mut output_file)
+                    .expect("Encoding failed");
             }
 
             // Compare input and output files
@@ -63,7 +66,10 @@ mod tests {
                         fs::remove_file(&output_path).expect("Failed to remove emitted file");
                         Ok(())
                     }
-                    Ok(false) => Err(format!("Emitted ULOG file does not match input for {:?}", input_path)),
+                    Ok(false) => Err(format!(
+                        "Emitted ULOG file does not match input for {:?}",
+                        input_path
+                    )),
                     Err(e) => Err(format!("File comparison failed: {}", e)),
                 }
             } else {
@@ -94,12 +100,19 @@ mod tests {
         assert!(all_passed);
     }
 
-
     // Function to extract the relative path after the given component
     fn extract_relative_path(file_path: &PathBuf, component: &str) -> String {
         if let Some(pos) = file_path.to_str().unwrap_or("").find(component) {
             // Add the component back as the prefix
-            format!("{}{}", component, &file_path.to_str().unwrap_or("").split_at(pos + component.len()).1)
+            format!(
+                "{}{}",
+                component,
+                &file_path
+                    .to_str()
+                    .unwrap_or("")
+                    .split_at(pos + component.len())
+                    .1
+            )
         } else {
             // If the component is not found, return the full path
             file_path.display().to_string()

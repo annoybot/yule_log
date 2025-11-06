@@ -34,15 +34,15 @@
 
 mod utils;
 
-use syn::spanned::Spanned;
-use proc_macro::TokenStream;
-use syn::{DeriveInput, Ident, Type};
-use darling::FromDeriveInput;
-use darling::FromVariant;
-use darling::FromField;
-use heck::ToSnakeCase;
-use quote::quote;
 use crate::utils::{extract_option_type, is_option_type, make_index_type};
+use darling::FromDeriveInput;
+use darling::FromField;
+use darling::FromVariant;
+use heck::ToSnakeCase;
+use proc_macro::TokenStream;
+use quote::quote;
+use syn::spanned::Spanned;
+use syn::{DeriveInput, Ident, Type};
 //
 // --------------------------- Struct Derive ---------------------------
 //
@@ -99,10 +99,7 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
     let fields = if let syn::Data::Struct(data) = &input.data {
         data.fields.iter().collect::<Vec<_>>()
     } else {
-        return syn::Error::new_spanned(
-            input.ident,
-            "ULogData derive on structs only",
-        )
+        return syn::Error::new_spanned(input.ident, "ULogData derive on structs only")
             .to_compile_error()
             .into();
     };
@@ -111,19 +108,16 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
     if !input.generics.params.is_empty() || input.generics.where_clause.is_some() {
         return syn::Error::new_spanned(
             input.ident,
-            "ULogData derive cannot be used with generic structs or where clauses."
+            "ULogData derive cannot be used with generic structs or where clauses.",
         )
-            .to_compile_error()
-            .into();
+        .to_compile_error()
+        .into();
     }
 
     // Require that each struct contain only named fields.
     for f in &fields {
         if f.ident.is_none() {
-            return syn::Error::new_spanned(
-                f,
-                "ULogData requires named struct fields.",
-            )
+            return syn::Error::new_spanned(f, "ULogData requires named struct fields.")
                 .to_compile_error()
                 .into();
         }
@@ -144,7 +138,8 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
     let accessor_name = Ident::new(&format!("{struct_name}Accessor"), struct_name.span());
 
     fn named_ident(f: &syn::Field) -> &syn::Ident {
-        #[allow(clippy::unwrap_used)] // Safe by invariant: all fields are named. See guard code above.
+        #[allow(clippy::unwrap_used)]
+        // Safe by invariant: all fields are named. See guard code above.
         f.ident.as_ref().unwrap()
     }
 
@@ -158,7 +153,7 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
         // otherwise usize.
         make_index_type(f)
     }
-    
+
     // Generate index_fields to hold the index of the field in the LoggedData message, for efficient lookup.
     let index_fields = fields.iter().map(|f| {
         let idx_ident = idx_ident(f);
@@ -172,7 +167,8 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
             let ulog_name = {
                 // This unwrap is safe because LoggedFieldAttr has the `Default` attribute applied.
                 let attr = LoggedFieldAttr::from_field(f).unwrap();
-                attr.field_name.unwrap_or_else(|| named_ident(f).to_string())
+                attr.field_name
+                    .unwrap_or_else(|| named_ident(f).to_string())
             };
 
             if is_option_type(&make_index_type(f)) {
@@ -182,45 +178,45 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
                 }
             } else {
                 quote! {
-                #idx_ident: match map.get(#ulog_name) {
-                    Some(&idx) => idx,
-                    None => {
-                        // If not found add to missing list to report an error later.
-                        // Index is set to 0, but will never be used.
-                        missing.push(#ulog_name);
-                        0
+                    #idx_ident: match map.get(#ulog_name) {
+                        Some(&idx) => idx,
+                        None => {
+                            // If not found add to missing list to report an error later.
+                            // Index is set to 0, but will never be used.
+                            missing.push(#ulog_name);
+                            0
+                        }
                     }
                 }
-            }
             }
         });
 
         quote! {
-        {
-            let map: std::collections::HashMap<String, usize> =
-                format.fields.iter().enumerate()
-                    .map(|(i, f)| (f.name.clone(), i))
-                    .collect();
+            {
+                let map: std::collections::HashMap<String, usize> =
+                    format.fields.iter().enumerate()
+                        .map(|(i, f)| (f.name.clone(), i))
+                        .collect();
 
-            let mut missing = Vec::new();
+                let mut missing = Vec::new();
 
-            let result = Self {
-                #( #idx_field_exprs ),*
-            };
+                let result = Self {
+                    #( #idx_field_exprs ),*
+                };
 
-            if !missing.is_empty() {
-                return Err(yule_log::errors::ULogError::InvalidFieldName(
-                    format!(
-                        "The following fields were not found in subscription `{}`: {}",
-                        #subscription,
-                        missing.join(", ")
-                    )
-                ));
-            } else {
-                return Ok(result);
+                if !missing.is_empty() {
+                    return Err(yule_log::errors::ULogError::InvalidFieldName(
+                        format!(
+                            "The following fields were not found in subscription `{}`: {}",
+                            #subscription,
+                            missing.join(", ")
+                        )
+                    ));
+                } else {
+                    return Ok(result);
+                }
             }
         }
-    }
     };
 
     let from_field_path: syn::Path = syn::parse_str("FromField").unwrap();
@@ -362,10 +358,7 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
     let variants = if let syn::Data::Enum(data_enum) = &input.data {
         &data_enum.variants
     } else {
-        return syn::Error::new_spanned(
-            input.ident,
-            "ULogMessages derive only works on enums.",
-        )
+        return syn::Error::new_spanned(input.ident, "ULogMessages derive only works on enums.")
             .to_compile_error()
             .into();
     };
@@ -374,10 +367,10 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
     if !input.generics.params.is_empty() || input.generics.where_clause.is_some() {
         return syn::Error::new_spanned(
             input.ident,
-            "ULogMessages derive cannot be used with generic enums or where clauses."
+            "ULogMessages derive cannot be used with generic enums or where clauses.",
         )
-            .to_compile_error()
-            .into();
+        .to_compile_error()
+        .into();
     }
 
     // Find the variant marked with #[yule_log(forward_other)], if present
@@ -390,10 +383,10 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
             if forward_other_variant_ident.is_some() {
                 return syn::Error::new_spanned(
                     v,
-                    "Only one variant may have #[yule_log(forward_other)]."
+                    "Only one variant may have #[yule_log(forward_other)].",
                 )
-                    .to_compile_error()
-                    .into();
+                .to_compile_error()
+                .into();
             }
             forward_other_variant_ident = Some(v.ident.clone());
         }
@@ -404,8 +397,8 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
                     v,
                     "Enum variants must be tuple variants containing exactly one struct type.",
                 )
-                    .to_compile_error()
-                    .into();
+                .to_compile_error()
+                .into();
             }
             variant_info.push((v.ident.clone(), &fields.unnamed[0].ty));
         }
@@ -422,10 +415,8 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
         enum_name.span(),
     );
 
-    let hidden_struct_name = Ident::new(
-        &format!("__yule_log_derive_{enum_name}"),
-        enum_name.span(),
-    );
+    let hidden_struct_name =
+        Ident::new(&format!("__yule_log_derive_{enum_name}"), enum_name.span());
 
     let builder_struct_name = Ident::new(
         &format!("__yule_log_derive_{enum_name}Builder"),
@@ -434,14 +425,21 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
 
     /// Generate an accessor name for an enum variant wrapping a single struct.
     /// Fails at compile time if the type is not a simple struct path.
-    fn generate_accessor_name(ty: &syn::Type, span: proc_macro2::Span) -> Result<Ident, syn::Error> {
+    fn generate_accessor_name(
+        ty: &syn::Type,
+        span: proc_macro2::Span,
+    ) -> Result<Ident, syn::Error> {
         if let syn::Type::Path(type_path) = ty {
-            #[allow(clippy::unwrap_used)] // Safe: syn::Type::Path always has at least one segment for a valid Rust struct type.
+            #[allow(clippy::unwrap_used)]
+            // Safe: syn::Type::Path always has at least one segment for a valid Rust struct type.
             let ident = &type_path.path.segments.last().unwrap().ident;
             let name = format!("{ident}Accessor");
             Ok(Ident::new(&name, span))
         } else {
-            Err(syn::Error::new(span, "Enum variants must be tuple variants containing exactly one struct type."))
+            Err(syn::Error::new(
+                span,
+                "Enum variants must be tuple variants containing exactly one struct type.",
+            ))
         }
     }
 
@@ -514,7 +512,7 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
     };
 
     let has_forward_other = forward_other_variant_ident.is_some();
-    
+
     let extra_logged_msg_conditional = match has_forward_other {
         true => quote! {
             else {
@@ -523,7 +521,7 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
         },
         false => quote! {},
     };
-    
+
     let extra_subscription_forwarder = match has_forward_other {
         true => quote! {
             // forward unhandled subscription messages when the user requested them.
@@ -551,10 +549,10 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
             extra_allow_list: Vec<String>,
             forward_subscriptions: bool,
         }
-        
+
         impl<R: std::io::Read> #builder_struct_name<R> {
             pub const HAS_FORWARD_OTHER: bool = #has_forward_other;
-            
+
             pub fn new(reader: R) -> Self {
                 Self {
                     reader,
@@ -562,7 +560,7 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
                     forward_subscriptions: false,
                 }
             }
-            
+
             #[allow(dead_code)]
             pub fn add_subscription<S: Into<String>>(mut self, name: S) -> Result<Self, yule_log::errors::ULogError> {
                 if !Self::HAS_FORWARD_OTHER {
@@ -573,7 +571,7 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
                 self.extra_allow_list.push(name.into());
                 Ok(self)
             }
-            
+
             pub fn extend_subscriptions<I, S>(mut self, subs: I) -> Result<Self, yule_log::errors::ULogError>
             where
                 I: IntoIterator<Item = S>,
@@ -584,12 +582,12 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
                         "Cannot add extra subscriptions because there is no #[yule_log(forward_other)] variant configured to receive them.".to_string()
                     ));
                 }
-            
+
                 self.extra_allow_list.extend(subs.into_iter().map(Into::into));
-            
+
                 Ok(self)
             }
-            
+
             #[allow(dead_code)]
             pub fn forward_subscriptions(mut self, value: bool) -> Result<Self, yule_log::errors::ULogError> {
                 match value {
@@ -603,10 +601,10 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
                     }
                     false => {}
                 }
-                
+
                 Ok(self)
             }
-            
+
             pub fn stream(self) -> Result<#hidden_struct_name<R>, yule_log::errors::ULogError> {
                 let mut result = #hidden_struct_name::new(self.reader)?;
                 result.extend_allow_list(self.extra_allow_list);
@@ -614,7 +612,7 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
                 Ok( result )
             }
         }
-        
+
         #[doc = "Internal iterator struct driving the ULog parser and dispatching messages."]
         #[allow(non_camel_case_types)]
         #[automatically_derived]
@@ -641,14 +639,14 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
 
                 Ok(Self { parser, subs: std::collections::HashMap::new(), forward_subscriptions: false })
             }
-            
+
             fn extend_allow_list(&mut self, extra_allow_list: Vec<String>) {
                 let mut allow: std::collections::HashSet<String> =
                     [ #( #subscription_idents.to_string() ),* ].into_iter().collect();
                 allow.extend(extra_allow_list.iter().cloned());
                 self.parser.set_subscription_allow_list(allow);
             }
-            
+
             pub fn forward_subscriptions(&mut self, value: bool)  {
                 self.forward_subscriptions = value;
             }
@@ -684,7 +682,7 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
                                 return Some(match acc {
                                     #( #logged_data_arms ),*
                                 });
-                            } 
+                            }
                             #extra_logged_msg_conditional
                         }
                         #forward_other_arm
@@ -694,7 +692,7 @@ pub fn derive_logged_enum(input: TokenStream) -> TokenStream {
                 None
             }
         }
-        
+
         #[automatically_derived]
         impl #enum_name {
             #[doc = "Returns an iterator over the selected ULOG messages from the reader."]

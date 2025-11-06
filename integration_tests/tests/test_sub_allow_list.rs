@@ -4,11 +4,15 @@ use yule_log::builder::ULogParserBuilder;
 use yule_log::model::msg::UlogMessage;
 
 #[test]
-fn test_sub_allow_list() -> Result<(), Box<dyn std::error::Error>>  {
+fn test_sub_allow_list() -> Result<(), Box<dyn std::error::Error>> {
     let reader = BufReader::new(File::open("../core/test_data/input/sample_log_small.ulg")?);
 
     let stream = ULogParserBuilder::new(reader)
-        .set_subscription_allow_list(["vehicle_local_position", "vehicle_gps_position", "vehicle_attitude"])
+        .set_subscription_allow_list([
+            "vehicle_local_position",
+            "vehicle_gps_position",
+            "vehicle_attitude",
+        ])
         .build()?;
 
     #[derive(Default)]
@@ -30,22 +34,20 @@ fn test_sub_allow_list() -> Result<(), Box<dyn std::error::Error>>  {
     for msg_res in stream {
         let msg = msg_res?;
         match msg {
-            UlogMessage::LoggedData(data) => {
-                match data.data.name.as_str() {
-                    "vehicle_local_position" => {
-                        flags.pos_seen = true;
-                    }
-                    "vehicle_gps_position" => {
-                        flags.gps_seen = true;
-                    }
-                    "vehicle_attitude" => {
-                        flags.att_seen = true;
-                    }
-                    _ => {
-                        flags.other_seen = true;
-                    }
+            UlogMessage::LoggedData(data) => match data.data.name.as_str() {
+                "vehicle_local_position" => {
+                    flags.pos_seen = true;
                 }
-            }
+                "vehicle_gps_position" => {
+                    flags.gps_seen = true;
+                }
+                "vehicle_attitude" => {
+                    flags.att_seen = true;
+                }
+                _ => {
+                    flags.other_seen = true;
+                }
+            },
             _ => {}
         }
 
@@ -54,13 +56,20 @@ fn test_sub_allow_list() -> Result<(), Box<dyn std::error::Error>>  {
         }
     }
 
-    assert!(flags.pos_seen, "Expected at least one 'vehicle_local_position' message.");
-    assert!(flags.gps_seen, "Expected at least one 'vehicle_gps_position' message.");
-    assert!(flags.att_seen, "Expected at least one 'vehicle_attitude' message.");
-    
+    assert!(
+        flags.pos_seen,
+        "Expected at least one 'vehicle_local_position' message."
+    );
+    assert!(
+        flags.gps_seen,
+        "Expected at least one 'vehicle_gps_position' message."
+    );
+    assert!(
+        flags.att_seen,
+        "Expected at least one 'vehicle_attitude' message."
+    );
+
     assert!(!flags.other_seen, "Unexpected message received.");
 
-
-    Ok( () )
-
+    Ok(())
 }
