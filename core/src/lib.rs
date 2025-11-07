@@ -18,3 +18,4 @@ pub use yule_log_macros::{ULogData, ULogMessages};
 
 #[cfg(feature = "macros")]
 pub mod macro_utils;
+mod vec_pool;

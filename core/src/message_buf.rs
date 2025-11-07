@@ -5,6 +5,7 @@ use std::mem::size_of;
 use byteorder::{ByteOrder, LittleEndian};
 
 use crate::errors::ULogError;
+use crate::vec_pool::PooledVec;
 
 /// `MessageBuf` wraps a vector of bytes and allows the user to
 /// successively take values from it without manually calculating
@@ -42,7 +43,7 @@ use crate::errors::ULogError;
 /// ```
 pub struct MessageBuf {
     /// The raw byte vector from which values will be read.
-    buf: Vec<u8>,
+    buf: PooledVec,
 
     /// The current position in the byte vector, starting at zero.
     current_index: usize,
@@ -58,7 +59,7 @@ impl MessageBuf {
     /// # Returns
     ///
     /// A new `MessageBuf` instance initialized with the provided byte vector and the current index set to zero.
-    pub fn new(buf: Vec<u8>) -> Self {
+    pub fn new(buf: PooledVec) -> Self {
         Self {
             buf,
             current_index: 0,
@@ -74,7 +75,7 @@ impl MessageBuf {
     /// # Returns
     ///
     /// A new `MessageBuf` instance initialized with the provided byte vector and the current index set to zero.
-    pub fn from_vec(buf: Vec<u8>) -> Self {
+    pub fn from_vec(buf: PooledVec) -> Self {
         Self {
             buf,
             current_index: 0,

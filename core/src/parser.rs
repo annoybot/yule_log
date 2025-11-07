@@ -18,6 +18,7 @@ use crate::model::msg::{
 };
 use crate::model::{def, inst, msg, MAGIC};
 use crate::tokenizer::TokenList;
+use crate::vec_pool::VecU8Pool;
 
 pub struct ULogParser<R: Read> {
     state: State,
@@ -32,6 +33,7 @@ pub struct ULogParser<R: Read> {
     pub(crate) include_header: bool,
     pub(crate) include_timestamp: bool,
     pub(crate) include_padding: bool,
+    vec_pool: VecU8Pool,
 }
 
 pub struct SubscriptionFilter {
@@ -117,6 +119,7 @@ impl<R: Read> ULogParser<R> {
             include_header: false,
             include_timestamp: false,
             include_padding: false,
+            vec_pool: VecU8Pool::new(),
         })
     }
 
@@ -148,10 +151,19 @@ impl<R: Read> ULogParser<R> {
         }
     }
 
-    pub(crate) fn read_message(&mut self, msg_size: usize) -> Result<MessageBuf, ULogError> {
+    /*
+    pub(crate) fn read_message_old(&mut self, msg_size: usize) -> Result<MessageBuf, ULogError> {
         let mut message: Vec<u8> = vec![0; msg_size];
         self.datastream.read_exact(&mut message)?;
         Ok(MessageBuf::from_vec(message))
+    }
+    */
+
+    pub(crate) fn read_message(&mut self, msg_size: usize) -> Result<MessageBuf, ULogError> {
+        let mut buf = self.vec_pool.allocate(msg_size);
+        buf.resize(msg_size, 0); // sets length = msg_size, fills with zero
+        self.datastream.read_exact(&mut buf)?;
+        Ok(MessageBuf::from_vec(buf)) 
     }
 
     #[allow(clippy::single_match_else)]
@@ -893,8 +905,9 @@ mod tests {
 
     #[test]
     fn test_round_trip_format() {
+        let pool: VecU8Pool = VecU8Pool::new();
         let input = b"my_format:uint64_t timestamp;custom_type custom_field;bool is_happy;custom_type2[4] custom_field;uint8_t[8] pet_ids;";
-        let message_buf = MessageBuf::from_vec(input.to_vec());
+        let message_buf = MessageBuf::from_vec(pool.from_slice(input));
 
         let parsed_format = parse_format(message_buf).unwrap();
 
@@ -913,6 +926,7 @@ mod tests {
 
     #[test]
     fn test_round_trip_subscription() {
+        let pool = VecU8Pool::new();
         //  \x0A    \x01\x00  my_message
         // multi_id  msg_id   message_name
         let input_bytes = b"\x0A\x01\x00my_message";
@@ -931,7 +945,7 @@ mod tests {
         );
 
         // MessageBuf should not contain the header bytes, which is why initialise it from byte 3 onwards.
-        let message_buf = MessageBuf::from_vec(input_bytes.to_vec());
+        let message_buf = MessageBuf::from_vec(pool.from_slice(input_bytes));
 
         // Parse the Subscription
         let parsed_subscription = parser
