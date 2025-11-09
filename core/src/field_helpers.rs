@@ -7,64 +7,77 @@ pub trait ParseFromBuf: Sized {
 }
 
 impl ParseFromBuf for u8 {
+    #[inline(always)]
     fn parse_from_buf(buf: &mut MessageBuf) -> Result<Self, ULogError> {
         buf.take_u8()
     }
 }
-impl ParseFromBuf for CChar { 
+impl ParseFromBuf for CChar {
+    #[inline(always)]
     fn parse_from_buf(buf: &mut MessageBuf) -> Result<Self, ULogError> { Ok(buf.take_u8()?.into()) } 
 }
 impl ParseFromBuf for u16 {
+    #[inline(always)]
     fn parse_from_buf(buf: &mut MessageBuf) -> Result<Self, ULogError> {
         buf.take_u16()
     }
 }
 impl ParseFromBuf for u32 {
+    #[inline(always)]
     fn parse_from_buf(buf: &mut MessageBuf) -> Result<Self, ULogError> {
         buf.take_u32()
     }
 }
 impl ParseFromBuf for u64 {
+    #[inline(always)]
     fn parse_from_buf(buf: &mut MessageBuf) -> Result<Self, ULogError> {
         buf.take_u64()
     }
 }
 impl ParseFromBuf for i8 {
+    #[inline(always)]
     fn parse_from_buf(buf: &mut MessageBuf) -> Result<Self, ULogError> {
         buf.take_i8()
     }
 }
 impl ParseFromBuf for i16 {
+    #[inline(always)]
     fn parse_from_buf(buf: &mut MessageBuf) -> Result<Self, ULogError> {
         buf.take_i16()
     }
 }
 impl ParseFromBuf for i32 {
+    #[inline(always)]
     fn parse_from_buf(buf: &mut MessageBuf) -> Result<Self, ULogError> {
         buf.take_i32()
     }
 }
 impl ParseFromBuf for i64 {
+    #[inline(always)]
     fn parse_from_buf(buf: &mut MessageBuf) -> Result<Self, ULogError> {
         buf.take_i64()
     }
 }
 impl ParseFromBuf for f32 {
+    #[inline(always)]
     fn parse_from_buf(buf: &mut MessageBuf) -> Result<Self, ULogError> {
         buf.take_f32()
     }
 }
 impl ParseFromBuf for f64 {
+    #[inline(always)]
     fn parse_from_buf(buf: &mut MessageBuf) -> Result<Self, ULogError> {
         buf.take_f64()
     }
 }
 impl ParseFromBuf for bool {
+    #[inline(always)]
     fn parse_from_buf(buf: &mut MessageBuf) -> Result<Self, ULogError> {
         Ok(buf.take_u8()? != 0)
     }
 }
 impl ParseFromBuf for char {
+    #[inline(always)]
     fn parse_from_buf(buf: &mut MessageBuf) -> Result<Self, ULogError> {
         Ok(buf.take_u8()? as char)
     }

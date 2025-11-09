@@ -65,30 +65,35 @@ impl<R: Read> DataStream<R> {
         Ok(total_skipped)
     }
 
+    #[inline(always)]
     pub fn read_u8(&mut self) -> Result<u8, ULogError> {
         let mut buf = [0; 1];
         self.read_exact(&mut buf)?;
         Ok(buf[0])
     }
 
+    #[inline(always)]
     pub fn read_u16(&mut self) -> Result<u16, ULogError> {
         let mut buf = [0; 2];
         self.read_exact(&mut buf)?;
         Ok(LittleEndian::read_u16(&buf))
     }
 
+    #[inline(always)]
     pub fn read_u32(&mut self) -> Result<u32, ULogError> {
         let mut buf = [0; 4];
         self.read_exact(&mut buf)?;
         Ok(LittleEndian::read_u32(&buf))
     }
 
+    #[inline(always)]
     pub fn read_u64(&mut self) -> Result<u64, ULogError> {
         let mut buf = [0; 8];
         self.read_exact(&mut buf)?;
         Ok(LittleEndian::read_u64(&buf))
     }
-
+    
+    #[inline(always)]
     pub fn read_i8(&mut self) -> Result<i8, ULogError> {
         let mut buf = [0; 1];
         self.read_exact(&mut buf)?;
@@ -97,36 +102,42 @@ impl<R: Read> DataStream<R> {
         Ok(buf[0] as i8)
     }
 
+    #[inline(always)]
     pub fn read_i16(&mut self) -> Result<i16, ULogError> {
         let mut buf = [0; 2];
         self.read_exact(&mut buf)?;
         Ok(LittleEndian::read_i16(&buf))
     }
 
+    #[inline(always)]
     pub fn read_i32(&mut self) -> Result<i32, ULogError> {
         let mut buf = [0; 4];
         self.read_exact(&mut buf)?;
         Ok(LittleEndian::read_i32(&buf))
     }
 
+    #[inline(always)]
     pub fn read_f32(&mut self) -> Result<f32, ULogError> {
         let mut buf = [0; 4];
         self.read_exact(&mut buf)?;
         Ok(LittleEndian::read_f32(&buf))
     }
 
+    #[inline(always)]
     pub fn read_f64(&mut self) -> Result<f64, ULogError> {
         let mut buf = [0; 8];
         self.read_exact(&mut buf)?;
         Ok(LittleEndian::read_f64(&buf))
     }
 
+    #[inline(always)]
     pub fn read_bool(&mut self) -> Result<bool, ULogError> {
         let mut buf = [0; 1];
         self.read_exact(&mut buf)?;
         Ok(buf[0] != 0)
     }
 
+    #[inline(always)]
     pub fn read_string(&mut self, len: usize) -> Result<String, ULogError> {
         let mut buf = vec![0; len];
         self.read_exact(&mut buf)?;
