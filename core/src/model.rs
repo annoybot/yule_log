@@ -187,6 +187,8 @@ pub mod msg {
 /// See also the `inst` module, which defines structs that carry actual data, which are analogues
 /// of the structures defined in this module.
 pub mod def {
+    use std::rc::Rc;
+
     #[derive(Debug, Clone, PartialEq)]
     pub struct Format {
         pub name: String,
@@ -196,7 +198,7 @@ pub mod def {
 
     #[derive(Debug, Clone, PartialEq)]
     pub struct Field {
-        pub name: String,
+        pub name: Rc<str>,
         pub r#type: TypeExpr,
     }
 
@@ -246,7 +248,7 @@ pub mod inst {
 
     #[derive(Debug, Clone, PartialEq)]
     pub struct Field {
-        pub name: String,
+        pub name: Rc<str>,
         pub r#type: TypeExpr,
         pub value: FieldValue,
     }

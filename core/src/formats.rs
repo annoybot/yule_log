@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use crate::errors::ULogError;
 use crate::message_buf::MessageBuf;
 use crate::model::def;
@@ -71,7 +72,7 @@ pub(crate) fn parse_field(token_list: &mut TokenList) -> Result<def::Field, ULog
     };
 
     Ok(def::Field {
-        name: field_name.to_string(),
+        name: Rc::from(field_name.to_string()),
         r#type: def::TypeExpr {
             base_type,
             array_size,
@@ -122,21 +123,21 @@ mod tests {
             name: "my_format".to_string(),
             fields: vec![
                 def::Field {
-                    name: "timestamp".to_string(),
+                    name: Rc::from("timestamp"),
                     r#type: def::TypeExpr {
                         base_type: def::BaseType::UINT64,
                         array_size: None,
                     },
                 },
                 def::Field {
-                    name: "is_happy".to_string(),
+                    name: Rc::from("is_happy"),
                     r#type: def::TypeExpr {
                         base_type: def::BaseType::BOOL,
                         array_size: None,
                     },
                 },
                 def::Field {
-                    name: "pet_ids".to_string(),
+                    name: Rc::from("pet_ids"),
                     r#type: def::TypeExpr {
                         base_type: def::BaseType::UINT8,
                         array_size: Some(8),

@@ -387,7 +387,7 @@ impl<R: Read> ULogParser<R> {
         let format = self.get_format(&sub.message_name)?;
         let _message_len = message_buf.len();
 
-        if !format.fields.iter().any(|f| f.name == "timestamp") {
+        if !format.fields.iter().any(|f| f.name.as_ref() == "timestamp") {
             return Err(ULogError::MissingTimestamp);
         }
 
@@ -439,13 +439,13 @@ impl<R: Read> ULogParser<R> {
             // When this function returns, the top-level timestamp will then be extracted and assigned
             // to msg::LoggedData.timestamp. See: `parse_data_message()`
             if let inst::FieldValue::ScalarU64(value) = value {
-                if field.name == "timestamp" {
+                if field.name.as_ref() == "timestamp" {
                     timestamp = Some(value);
                 }
             }
 
             fields.push(inst::Field {
-                name: field.name.clone(),
+                name: Rc::from(field.name.clone()),
                 r#type: field.r#type.clone(),
                 value,
             });
@@ -479,7 +479,7 @@ impl<R: Read> ULogParser<R> {
             if self.include_padding {
                 let array = message_buf.advance(array_size)?.to_vec();
                 return Ok( Some( inst::Field {
-                    name: field.name.clone(),
+                    name: Rc::from(field.name.clone()),
                     r#type: field.r#type.clone(),
                     value: inst::FieldValue::ArrayU8(array),
                 }));
@@ -692,7 +692,7 @@ impl<R: Read> ULogParser<R> {
         log::debug!("INFO {:?} {}:\t{}", field.r#type, &field.name, value);
 
         Ok(msg::Info {
-            key: field.name,
+            key: field.name.to_string(),
             r#type: field.r#type,
             value,
         })
@@ -714,7 +714,7 @@ impl<R: Read> ULogParser<R> {
         log::debug!("is_continued = {is_continued}");
 
         let result: MultiInfo = MultiInfo {
-            key: field.name,
+            key: field.name.to_string(),
             r#type: field.r#type,
             value,
             is_continued,
@@ -748,7 +748,7 @@ impl<R: Read> ULogParser<R> {
             log::debug!("INFO {:?} {}:\t{:?}", field.r#type, &field.name, value);
 
             Ok(msg::Parameter {
-                key: field.name,
+                key: field.name.to_string(),
                 r#type: field.r#type,
                 value,
             })
@@ -784,7 +784,7 @@ impl<R: Read> ULogParser<R> {
             log::debug!("INFO {:?} {}:\t{:?}", field.r#type, &field.name, value);
 
             Ok(msg::DefaultParameter {
-                key: field.name,
+                key: field.name.to_string(),
                 default_types,
                 r#type: field.r#type,
                 value,
@@ -866,7 +866,7 @@ impl From<ULogMessageType> for u8 {
 impl LoggedData {
     pub fn filter_fields(&mut self, include_timestamp: bool, include_padding: bool) {
         self.data.fields.retain(|field| {
-            if field.name == "timestamp" {
+            if field.name.as_ref() == "timestamp" {
                 return include_timestamp;
             }
 
