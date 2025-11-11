@@ -391,6 +391,24 @@ impl From<CChar> for u8 {
     }
 }
 
+impl CChar {
+    /// Return the underlying byte value.
+    #[inline]
+    pub fn as_u8(&self) -> u8 {
+        self.0
+    }
+
+    /// Return the character if ASCII, otherwise replacement character.
+    #[inline]
+    pub fn as_char(&self) -> char {
+        if self.0.is_ascii() {
+            self.0 as char
+        } else {
+            '\u{FFFD}' // Use � as a replacement character.
+        }
+    }
+}
+
 impl std::fmt::Display for CChar {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Display ASCII directly, fallback for non-ASCII
@@ -404,14 +422,58 @@ impl std::fmt::Display for CChar {
 
 pub trait CCharSlice {
     fn to_string_lossy(&self) -> String;
+
+    /// Return a view of the slice as raw bytes.
+    fn as_bytes(&self) -> &[u8];
+    
+    /// Trim trailing NUL bytes and return subslice.
+    fn trim_end_nul(&self) -> &[CChar];
+    fn to_string_lossy_trimmed(&self) -> String;
 }
 
 impl CCharSlice for [CChar] {
     fn to_string_lossy(&self) -> String {
-        // Safe because CChar is repr(transparent) over u8 and slice is valid.
         // ⚠️ According to the ULOG spec, strings are not NULL terminated, so we just take the whole slice.
-        let bytes: &[u8] = unsafe { std::slice::from_raw_parts(self.as_ptr() as *const u8, self.len()) };
-        String::from_utf8_lossy(bytes).into_owned()
+        String::from_utf8_lossy(self.as_bytes()).into_owned()
+    }
+
+    /// Return a view of the slice as raw bytes.
+    fn as_bytes(&self) -> &[u8] {
+        // Safe because CChar is repr(transparent) over u8 and slice is valid.
+        unsafe { std::slice::from_raw_parts(self.as_ptr() as *const u8, self.len()) }
+    }
+
+    /// Trim trailing NUL bytes and return subslice.
+    fn trim_end_nul(&self) -> &[CChar] {
+        let mut end = self.len();
+        while end > 0 && self[end - 1].0 == 0 {
+            end -= 1;
+        }
+        &self[..end]
+    }
+
+    /// Return a string with trailing NULs removed.
+    fn to_string_lossy_trimmed(&self) -> String {
+        self.to_string_lossy().trim_end_matches(char::from(0)).to_string()
     }
 }
+
+impl CCharSlice for Vec<CChar> {
+    fn to_string_lossy(&self) -> String {
+        self.as_slice().to_string_lossy()
+    }
+
+    fn as_bytes(&self) -> &[u8] {
+        self.as_slice().as_bytes()
+    }
+
+    fn trim_end_nul(&self) -> &[CChar] {
+        self.as_slice().trim_end_nul()
+    }
+
+    fn to_string_lossy_trimmed(&self) -> String {
+        self.as_slice().to_string_lossy_trimmed()
+    }
+}
+
 
