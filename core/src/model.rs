@@ -23,10 +23,7 @@ pub mod msg {
             msg_type: u8,
             message_contents: Vec<u8>,
         },
-        Ignored {
-            msg_type: u8,
-            message_contents: Vec<u8>,
-        },
+        Ignored {msg_type: u8},
     }
 
     #[derive(Debug, Copy, Clone)]
@@ -187,29 +184,29 @@ pub mod msg {
 /// See also the `inst` module, which defines structs that carry actual data, which are analogues
 /// of the structures defined in this module.
 pub mod def {
-    use serde::Serialize;
+    use std::rc::Rc;
 
-    #[derive(Debug, Clone, PartialEq, Serialize)]
+    #[derive(Debug, Clone, PartialEq)]
     pub struct Format {
         pub name: String,
         pub fields: Vec<Field>,
         pub padding: usize,
     }
 
-    #[derive(Debug, Clone, PartialEq, Serialize)]
+    #[derive(Debug, Clone, PartialEq)]
     pub struct Field {
-        pub name: String,
+        pub name: Rc<str>,
         pub r#type: TypeExpr,
     }
 
-    #[derive(Debug, Clone, PartialEq, Serialize)]
+    #[derive(Debug, Clone, PartialEq)]
     pub struct TypeExpr {
         pub base_type: BaseType,
         pub array_size: Option<usize>,
     }
 
     #[allow(clippy::upper_case_acronyms)]
-    #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
+    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
     pub enum BaseType {
         UINT8,
         UINT16,
@@ -233,8 +230,9 @@ pub mod def {
 /// For example, `inst::Format` and `inst::Field` represent concrete data objects, which
 /// are instances of the type definitions described by `def::Format` and `def::Field`.
 pub mod inst {
+    use std::rc::Rc;
     use crate::model::def::TypeExpr;
-    use crate::model::{def, inst};
+    use crate::model::{def, inst, CChar};
 
     #[derive(Debug, Clone, PartialEq)]
     pub struct Format {
@@ -242,12 +240,12 @@ pub mod inst {
         pub name: String,
         pub fields: Vec<Field>,
         pub multi_id_index: Option<u8>,
-        pub def_format: def::Format,
+        pub def_format: Rc<def::Format>,
     }
 
     #[derive(Debug, Clone, PartialEq)]
     pub struct Field {
-        pub name: String,
+        pub name: Rc<str>,
         pub r#type: TypeExpr,
         pub value: FieldValue,
     }
@@ -272,8 +270,8 @@ pub mod inst {
         ScalarF32(f32),
         ScalarF64(f64),
         ScalarBool(bool),
-        ScalarChar(char),
-        ScalarOther(inst::Format),
+        ScalarChar(CChar),
+        ScalarOther(Rc<inst::Format>), //Storing a pointer to this large object significantly reduces the size of the enum.
 
         // Typed arrays
         ArrayU8(Vec<u8>),
@@ -287,7 +285,7 @@ pub mod inst {
         ArrayF32(Vec<f32>),
         ArrayF64(Vec<f64>),
         ArrayBool(Vec<bool>),
-        ArrayChar(Vec<char>),
+        ArrayChar(Vec<CChar>),
         ArrayOther(Vec<inst::Format>),
     }
 }
@@ -308,7 +306,7 @@ impl inst::FieldValue {
             ArrayF64(v) => Some(v.iter().map(|&x| ScalarF64(x)).collect()),
             ArrayBool(v) => Some(v.iter().map(|&x| ScalarBool(x)).collect()),
             ArrayChar(v) => Some(v.iter().map(|&x| ScalarChar(x)).collect()),
-            ArrayOther(v) => Some(v.iter().map(|x| ScalarOther(x.clone())).collect()),
+            ArrayOther(v) => Some(v.iter().map(|x| ScalarOther(x.clone().into())).collect()),
             _ => None, // not an array
         }
     }
@@ -328,13 +326,13 @@ impl inst::Format {
         for field in &self.fields {
             let current_path = format!("{}/{}", path, field.name);
             if field.r#type.is_scalar() {
-                flattened.extend(self.flatten_data_type(current_path.clone(), &field.value));
+                flattened.extend(self.flatten_data_type(current_path, &field.value));
             } else {
-                let vec_of_scalars = &field.value.to_scalars().unwrap();
+                let vec_of_scalars = field.value.to_scalars().unwrap();
 
-                for (index, value) in vec_of_scalars.iter().enumerate() {
+                for (index, value) in vec_of_scalars.into_iter().enumerate() {
                     let array_path = format!("{current_path}.{index:02}");
-                    flattened.extend(self.flatten_data_type(array_path, value));
+                    flattened.extend(self.flatten_data_type(array_path, &value));
                 }
             }
         }
@@ -372,3 +370,107 @@ impl def::TypeExpr {
         self.array_size.is_some()
     }
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(transparent)]
+/// A newtype wrapper for u8 when it represents character data.
+pub struct CChar(pub u8);
+
+impl From<u8> for CChar {
+    fn from(byte: u8) -> Self {
+        CChar(byte)
+    }
+}
+
+impl From<CChar> for u8 {
+    fn from(c: CChar) -> Self {
+        c.0
+    }
+}
+
+impl CChar {
+    /// Return the underlying byte value.
+    #[inline]
+    pub fn as_u8(&self) -> u8 {
+        self.0
+    }
+
+    /// Return the character if ASCII, otherwise replacement character.
+    #[inline]
+    pub fn as_char(&self) -> char {
+        if self.0.is_ascii() {
+            self.0 as char
+        } else {
+            '\u{FFFD}' // Use � as a replacement character.
+        }
+    }
+}
+
+impl std::fmt::Display for CChar {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Display ASCII directly, fallback for non-ASCII
+        if self.0.is_ascii() {
+            write!(f, "{}", self.0 as char)
+        } else {
+            write!(f, "\\x{:02X}", self.0)
+        }
+    }
+}
+
+pub trait CCharSlice {
+    fn to_string_lossy(&self) -> String;
+
+    /// Return a view of the slice as raw bytes.
+    fn as_bytes(&self) -> &[u8];
+    
+    /// Trim trailing NUL bytes and return subslice.
+    fn trim_end_nul(&self) -> &[CChar];
+    fn to_string_lossy_trimmed(&self) -> String;
+}
+
+impl CCharSlice for [CChar] {
+    fn to_string_lossy(&self) -> String {
+        // ⚠️ According to the ULOG spec, strings are not NULL terminated, so we just take the whole slice.
+        String::from_utf8_lossy(self.as_bytes()).into_owned()
+    }
+
+    /// Return a view of the slice as raw bytes.
+    fn as_bytes(&self) -> &[u8] {
+        // Safe because CChar is repr(transparent) over u8 and slice is valid.
+        unsafe { std::slice::from_raw_parts(self.as_ptr() as *const u8, self.len()) }
+    }
+
+    /// Trim trailing NUL bytes and return subslice.
+    fn trim_end_nul(&self) -> &[CChar] {
+        let mut end = self.len();
+        while end > 0 && self[end - 1].0 == 0 {
+            end -= 1;
+        }
+        &self[..end]
+    }
+
+    /// Return a string with trailing NULs removed.
+    fn to_string_lossy_trimmed(&self) -> String {
+        self.to_string_lossy().trim_end_matches(char::from(0)).to_string()
+    }
+}
+
+impl CCharSlice for Vec<CChar> {
+    fn to_string_lossy(&self) -> String {
+        self.as_slice().to_string_lossy()
+    }
+
+    fn as_bytes(&self) -> &[u8] {
+        self.as_slice().as_bytes()
+    }
+
+    fn trim_end_nul(&self) -> &[CChar] {
+        self.as_slice().trim_end_nul()
+    }
+
+    fn to_string_lossy_trimmed(&self) -> String {
+        self.as_slice().to_string_lossy_trimmed()
+    }
+}
+
+

@@ -72,10 +72,8 @@ impl UlogMessage {
             UlogMessage::DropoutMark(dropout) => dropout.encode(writer),
             UlogMessage::Unhandled {
                 message_contents, ..
-            }
-            | UlogMessage::Ignored {
-                message_contents, ..
             } => writer.write_all(message_contents),
+            UlogMessage::Ignored { msg_type: _ } => { Ok(())},
             UlogMessage::Header(_) => unreachable!("Handled separately"),
         }
     }
@@ -298,7 +296,7 @@ impl Encode for inst::FieldValue {
             ScalarF32(v) => writer.write_all(&v.to_le_bytes()),
             ScalarF64(v) => writer.write_all(&v.to_le_bytes()),
             ScalarBool(v) => writer.write_all(&[*v as u8]),
-            ScalarChar(c) => writer.write_all(&[*c as u8]),
+            ScalarChar(c) => writer.write_all(&[u8::from(*c)]),
             ScalarOther(fmt) => {
                 for sub_field in &fmt.fields {
                     sub_field.encode(writer)?;
@@ -368,9 +366,11 @@ impl Encode for inst::FieldValue {
                 Ok(())
             }
             ArrayChar(arr) => {
-                for c in arr {
-                    writer.write_all(&[*c as u8])?;
-                }
+                // Safe because CChar is  struct CChar(pub u8) with #[repr(transparent)].
+                let bytes: &[u8] = unsafe {
+                    std::slice::from_raw_parts(arr.as_ptr() as *const u8, arr.len())
+                };
+                writer.write_all(bytes)?;
                 Ok(())
             }
             ArrayOther(arr) => {

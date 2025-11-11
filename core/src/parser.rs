@@ -1,9 +1,9 @@
 #![allow(non_camel_case_types)]
 
+use crate::field_helpers::parse_primitive_array;
 use std::collections::{HashMap, HashSet};
 use std::io::Read;
-use std::marker::PhantomData;
-
+use std::rc::Rc;
 use byteorder::{ByteOrder, LittleEndian};
 
 use crate::datastream::DataStream;
@@ -16,15 +16,14 @@ use crate::model::def::BaseType;
 use crate::model::msg::{
     Dropout, FileHeader, FlagBits, LogLevel, LoggedData, MultiInfo, Subscription, UlogMessage,
 };
-use crate::model::MAGIC;
-use crate::model::{def, inst, msg};
+use crate::model::{def, inst, msg, MAGIC};
 use crate::tokenizer::TokenList;
 
 pub struct ULogParser<R: Read> {
     state: State,
     file_header: Option<FileHeader>,
     overridden_params: HashSet<String>,
-    pub formats: HashMap<String, def::Format>,
+    pub formats: HashMap<String, Rc<def::Format>>,
     subscriptions: HashMap<u16, msg::Subscription>,
     message_name_with_multi_id: HashSet<String>,
     subscription_filter: SubscriptionFilter,
@@ -33,7 +32,6 @@ pub struct ULogParser<R: Read> {
     pub(crate) include_header: bool,
     pub(crate) include_timestamp: bool,
     pub(crate) include_padding: bool,
-    _phantom: PhantomData<R>,
 }
 
 pub struct SubscriptionFilter {
@@ -119,7 +117,6 @@ impl<R: Read> ULogParser<R> {
             include_header: false,
             include_timestamp: false,
             include_padding: false,
-            _phantom: PhantomData,
         })
     }
 
@@ -137,17 +134,17 @@ impl<R: Read> ULogParser<R> {
         self.subscription_filter = SubscriptionFilter::new(set);
     }
 
-    pub fn get_format(&self, message_name: &str) -> Result<def::Format, ULogError> {
+    pub fn get_format(&self, message_name: &str) -> Result<Rc<def::Format>, ULogError> {
         match self.formats.get(message_name) {
             None => Err(UndefinedFormat(message_name.to_owned())),
             Some(format) => Ok(format.clone()),
         }
     }
 
-    pub fn get_subscription(&self, msg_id: u16) -> Result<msg::Subscription, ULogError> {
+    pub fn get_subscription(&self, msg_id: u16) -> Result<&msg::Subscription, ULogError> {
         match self.subscriptions.get(&msg_id) {
             None => Err(UndefinedSubscription(msg_id)),
-            Some(sub) => Ok(sub.clone()),
+            Some(sub) => Ok(sub),
         }
     }
 
@@ -216,11 +213,11 @@ impl<R: Read> ULogParser<R> {
                             println!("Heartbeat {format}");
                         }
 
-                        self.formats.insert(format.name.clone(), format.clone());
+                        self.formats.insert(format.name.clone(), Rc::new(format.clone()));
                     }
                     UlogMessage::AddSubscription(ref sub) => {
                         self.subscriptions.insert(sub.msg_id, sub.clone());
-                        self.subscription_filter.update_ids(&sub);
+                        self.subscription_filter.update_ids(sub);
 
                         if sub.multi_id > 0 {
                             self.message_name_with_multi_id
@@ -241,7 +238,7 @@ impl<R: Read> ULogParser<R> {
                 match msg {
                     UlogMessage::AddSubscription(ref sub) => {
                         self.subscriptions.insert(sub.msg_id, sub.clone());
-                        self.subscription_filter.update_ids(&sub);
+                        self.subscription_filter.update_ids(sub);
 
                         if sub.multi_id > 0 {
                             self.message_name_with_multi_id
@@ -288,13 +285,12 @@ impl<R: Read> ULogParser<R> {
                 let msg_id = message_buf.take_u16()?;
                 if let Ok(sub) = self.get_subscription(msg_id) {
                     if self.subscription_filter.is_allowed(sub.msg_id) {
-                        let logged_data = self.parse_data_message(&sub, message_buf)?;
+                        let logged_data = self.parse_data_message(sub, message_buf)?;
 
-                        return Ok(msg::UlogMessage::LoggedData(logged_data.clone()));
+                        return Ok(msg::UlogMessage::LoggedData(logged_data));
                     } else {
                         return Ok(UlogMessage::Ignored {
-                            msg_type: message_type.into(),
-                            message_contents: message_buf.into_remaining_bytes(),
+                            msg_type: message_type.into()
                         });
                     }
                 } else {
@@ -390,11 +386,11 @@ impl<R: Read> ULogParser<R> {
         let format = self.get_format(&sub.message_name)?;
         let _message_len = message_buf.len();
 
-        if !format.fields.iter().any(|f| f.name == "timestamp") {
+        if !format.fields.iter().any(|f| f.name.as_ref() == "timestamp") {
             return Err(ULogError::MissingTimestamp);
         }
 
-        let mut data_format = self.parse_data_message_sub(&format, &mut message_buf)?;
+        let mut data_format = self.parse_data_message_sub(format, &mut message_buf)?;
 
         if self.message_name_with_multi_id.contains(&sub.message_name) {
             data_format.multi_id_index = Some(sub.multi_id);
@@ -418,44 +414,18 @@ impl<R: Read> ULogParser<R> {
 
     fn parse_data_message_sub(
         &self,
-        format: &def::Format,
+        format: Rc<def::Format>,
         message_buf: &mut MessageBuf,
     ) -> Result<inst::Format, ULogError> {
-        let mut fields: Vec<inst::Field> = vec![];
+        let mut fields: Vec<inst::Field> = Vec::with_capacity(format.fields.len());
         let mut timestamp: Option<u64> = None;
 
         for field in &format.fields {
-            // Easy case handle padding field.
+            // Handle padding fields.
             if field.name.starts_with("_padding") {
-                match field.r#type.array_size {
-                    Some(array_size) => {
-                        match array_size.cmp(&message_buf.len()) {
-                            std::cmp::Ordering::Less | std::cmp::Ordering::Equal => {
-                                log::debug!("Encountered padding, and padding <= message.len(). Ok.");
-
-                                if self.include_padding {
-                                    let array = message_buf.advance(array_size)?.to_vec();
-                                    fields.push(inst::Field {
-                                        name: field.name.clone(),
-                                        r#type: field.r#type.clone(),
-                                        value: inst::FieldValue::ArrayU8(array),
-                                    });
-                                } else {
-                                    //Skip over the padding bytes.
-                                    message_buf.skip(array_size)?;
-                                }
-                            }
-                            std::cmp::Ordering::Greater => match message_buf.len() {
-                                0 => log::debug!("Encountered padding, and message.len() == 0. Ignoring as per ULOG spec."),
-                                _ => log::error!("Encountered padding, and padding > message.len(). Ignoring and hoping for the best"),
-                            },
-                        }
-                    }
-                    None => {
-                        log::warn!("Encountered padding, and type is scalar. Ignoring.");
-                    }
+                if let Some(padding_field) = self.parse_padding(field, message_buf)? {
+                    fields.push(padding_field);
                 }
-
                 continue;
             }
 
@@ -468,13 +438,13 @@ impl<R: Read> ULogParser<R> {
             // When this function returns, the top-level timestamp will then be extracted and assigned
             // to msg::LoggedData.timestamp. See: `parse_data_message()`
             if let inst::FieldValue::ScalarU64(value) = value {
-                if field.name == "timestamp" {
+                if field.name.as_ref() == "timestamp" {
                     timestamp = Some(value);
                 }
             }
 
             fields.push(inst::Field {
-                name: field.name.clone(),
+                name: Rc::from(field.name.clone()),
                 r#type: field.r#type.clone(),
                 value,
             });
@@ -492,6 +462,39 @@ impl<R: Read> ULogParser<R> {
         })
     }
 
+    fn parse_padding(
+        &self,
+        field: &def::Field,
+        message_buf: &mut MessageBuf,
+    ) -> Result<Option<inst::Field>, ULogError> {
+        let Some(array_size) = field.r#type.array_size else {
+            log::warn!("Encountered padding, and type is scalar. Ignoring.");
+            return Ok(None);
+        };
+        
+        if array_size <= message_buf.len() {
+            log::debug!("Encountered padding, and padding <= message.len(). Ok.");
+
+            if self.include_padding {
+                let array = message_buf.advance(array_size)?.to_vec();
+                return Ok( Some( inst::Field {
+                    name: Rc::from(field.name.clone()),
+                    r#type: field.r#type.clone(),
+                    value: inst::FieldValue::ArrayU8(array),
+                }));
+            } else {
+                //Skip over the padding bytes.
+                message_buf.skip(array_size)?;
+            }
+        } else {
+            match message_buf.len() {
+                0 => log::debug!("Encountered padding, and message.len() == 0. Ignoring as per ULOG spec."),
+                _ => log::error!("Encountered padding, and padding > message.len(). Ignoring and hoping for the best"),
+            }
+        }
+        Ok(None)
+    }
+
     fn parse_field_value(
         &self,
         field: &def::Field,
@@ -501,62 +504,28 @@ impl<R: Read> ULogParser<R> {
             None => {
                 // scalar
                 use def::BaseType::*;
-                match &field.r#type.base_type {
-                    UINT8 => Ok(inst::FieldValue::ScalarU8(parse_data_field::<u8>(
-                        field,
-                        message_buf,
-                    )?)),
-                    UINT16 => Ok(inst::FieldValue::ScalarU16(parse_data_field::<u16>(
-                        field,
-                        message_buf,
-                    )?)),
-                    UINT32 => Ok(inst::FieldValue::ScalarU32(parse_data_field::<u32>(
-                        field,
-                        message_buf,
-                    )?)),
-                    UINT64 => Ok(inst::FieldValue::ScalarU64(parse_data_field::<u64>(
-                        field,
-                        message_buf,
-                    )?)),
-                    INT8 => Ok(inst::FieldValue::ScalarI8(parse_data_field::<i8>(
-                        field,
-                        message_buf,
-                    )?)),
-                    INT16 => Ok(inst::FieldValue::ScalarI16(parse_data_field::<i16>(
-                        field,
-                        message_buf,
-                    )?)),
-                    INT32 => Ok(inst::FieldValue::ScalarI32(parse_data_field::<i32>(
-                        field,
-                        message_buf,
-                    )?)),
-                    INT64 => Ok(inst::FieldValue::ScalarI64(parse_data_field::<i64>(
-                        field,
-                        message_buf,
-                    )?)),
-                    FLOAT => Ok(inst::FieldValue::ScalarF32(parse_data_field::<f32>(
-                        field,
-                        message_buf,
-                    )?)),
-                    DOUBLE => Ok(inst::FieldValue::ScalarF64(parse_data_field::<f64>(
-                        field,
-                        message_buf,
-                    )?)),
-                    BOOL => Ok(inst::FieldValue::ScalarBool(parse_data_field::<bool>(
-                        field,
-                        message_buf,
-                    )?)),
-                    CHAR => Ok(inst::FieldValue::ScalarChar(parse_data_field::<char>(
-                        field,
-                        message_buf,
-                    )?)),
+                use inst::FieldValue::*;
+                Ok(match &field.r#type.base_type {
+                    UINT8 => ScalarU8(parse_data_field(message_buf)?),
+                    UINT16 => ScalarU16(parse_data_field(message_buf)?),
+                    UINT32 => ScalarU32(parse_data_field(message_buf)?),
+                    UINT64 => ScalarU64(parse_data_field(message_buf)?),
+                    INT8 => ScalarI8(parse_data_field(message_buf)?),
+                    INT16 => ScalarI16(parse_data_field(message_buf)?),
+                    INT32 => ScalarI32(parse_data_field(message_buf)?),
+                    INT64 => ScalarI64(parse_data_field(message_buf)?),
+                    FLOAT => ScalarF32(parse_data_field(message_buf)?),
+                    DOUBLE => ScalarF64(parse_data_field(message_buf)?),
+                    BOOL => ScalarBool(parse_data_field(message_buf)?),
+                    CHAR => ScalarChar(parse_data_field(message_buf)?),
                     OTHER(type_name) => {
-                        let child_format = &self.get_format(type_name)?;
-                        Ok(inst::FieldValue::ScalarOther(
-                            self.parse_data_message_sub(child_format, message_buf)?,
-                        ))
+                        let child_format = self.get_format(type_name)?;
+                        ScalarOther(
+                            self.parse_data_message_sub(child_format, message_buf)?
+                                .into(),
+                        )
                     }
-                }
+                })
             }
             Some(array_size) => self.parse_array_field(field, array_size, message_buf),
         }
@@ -569,77 +538,28 @@ impl<R: Read> ULogParser<R> {
         message_buf: &mut MessageBuf,
     ) -> Result<inst::FieldValue, ULogError> {
         use def::BaseType::*;
+        use inst::FieldValue::*;
 
-        match &field.r#type.base_type {
-            UINT8 => Ok(inst::FieldValue::ArrayU8(parse_array(
-                array_size,
-                message_buf,
-                |buf| parse_data_field::<u8>(field, buf),
-            )?)),
-            UINT16 => Ok(inst::FieldValue::ArrayU16(parse_array(
-                array_size,
-                message_buf,
-                |buf| parse_data_field::<u16>(field, buf),
-            )?)),
-            UINT32 => Ok(inst::FieldValue::ArrayU32(parse_array(
-                array_size,
-                message_buf,
-                |buf| parse_data_field::<u32>(field, buf),
-            )?)),
-            UINT64 => Ok(inst::FieldValue::ArrayU64(parse_array(
-                array_size,
-                message_buf,
-                |buf| parse_data_field::<u64>(field, buf),
-            )?)),
-            INT8 => Ok(inst::FieldValue::ArrayI8(parse_array(
-                array_size,
-                message_buf,
-                |buf| parse_data_field::<i8>(field, buf),
-            )?)),
-            INT16 => Ok(inst::FieldValue::ArrayI16(parse_array(
-                array_size,
-                message_buf,
-                |buf| parse_data_field::<i16>(field, buf),
-            )?)),
-            INT32 => Ok(inst::FieldValue::ArrayI32(parse_array(
-                array_size,
-                message_buf,
-                |buf| parse_data_field::<i32>(field, buf),
-            )?)),
-            INT64 => Ok(inst::FieldValue::ArrayI64(parse_array(
-                array_size,
-                message_buf,
-                |buf| parse_data_field::<i64>(field, buf),
-            )?)),
-            FLOAT => Ok(inst::FieldValue::ArrayF32(parse_array(
-                array_size,
-                message_buf,
-                |buf| parse_data_field::<f32>(field, buf),
-            )?)),
-            DOUBLE => Ok(inst::FieldValue::ArrayF64(parse_array(
-                array_size,
-                message_buf,
-                |buf| parse_data_field::<f64>(field, buf),
-            )?)),
-            BOOL => Ok(inst::FieldValue::ArrayBool(parse_array(
-                array_size,
-                message_buf,
-                |buf| parse_data_field::<bool>(field, buf),
-            )?)),
-            CHAR => Ok(inst::FieldValue::ArrayChar(parse_array(
-                array_size,
-                message_buf,
-                |buf| parse_data_field::<char>(field, buf),
-            )?)),
+        Ok(match &field.r#type.base_type {
+            UINT8 => ArrayU8(parse_primitive_array(array_size, message_buf)?),
+            UINT16 => ArrayU16(parse_primitive_array(array_size, message_buf)?),
+            UINT32 => ArrayU32(parse_primitive_array(array_size, message_buf)?),
+            UINT64 => ArrayU64(parse_primitive_array(array_size, message_buf)?),
+            INT8 => ArrayI8(parse_primitive_array(array_size, message_buf)?),
+            INT16 => ArrayI16(parse_primitive_array(array_size, message_buf)?),
+            INT32 => ArrayI32(parse_primitive_array(array_size, message_buf)?),
+            INT64 => ArrayI64(parse_primitive_array(array_size, message_buf)?),
+            FLOAT => ArrayF32(parse_primitive_array(array_size, message_buf)?),
+            DOUBLE => ArrayF64(parse_primitive_array(array_size, message_buf)?),
+            BOOL => ArrayBool(parse_primitive_array(array_size, message_buf)?),
+            CHAR => ArrayChar(parse_primitive_array(array_size, message_buf)?),
             OTHER(type_name) => {
                 let child_format = &self.get_format(type_name)?;
-                Ok(inst::FieldValue::ArrayOther(parse_array(
-                    array_size,
-                    message_buf,
-                    |buf| self.parse_data_message_sub(child_format, buf),
-                )?))
+                ArrayOther(parse_array(array_size, message_buf, |buf| {
+                    self.parse_data_message_sub(child_format.clone(), buf)
+                })?)
             }
-        }
+        })
     }
 
     fn read_file_header(&mut self) -> Result<FileHeader, ULogError> {
@@ -747,10 +667,11 @@ impl<R: Read> ULogParser<R> {
             return Err(ULogError::UnknownIncompatBits);
         }
 
-        let mut appended_data_offsets: [u64; 3] = [0, 0, 0];
-        for i in 0..3 {
-            appended_data_offsets[i] = message_buf.take_u64()?;
-        }
+        let appended_data_offsets = [
+            message_buf.take_u64()?,
+            message_buf.take_u64()?,
+            message_buf.take_u64()?,
+        ];
 
         Ok(FlagBits {
             compat_flags,
@@ -770,7 +691,7 @@ impl<R: Read> ULogParser<R> {
         log::debug!("INFO {:?} {}:\t{}", field.r#type, &field.name, value);
 
         Ok(msg::Info {
-            key: field.name,
+            key: field.name.to_string(),
             r#type: field.r#type,
             value,
         })
@@ -792,7 +713,7 @@ impl<R: Read> ULogParser<R> {
         log::debug!("is_continued = {is_continued}");
 
         let result: MultiInfo = MultiInfo {
-            key: field.name,
+            key: field.name.to_string(),
             r#type: field.r#type,
             value,
             is_continued,
@@ -816,8 +737,8 @@ impl<R: Read> ULogParser<R> {
             ));
         } else {
             let value: inst::ParameterValue = match field.r#type.base_type {
-                BaseType::INT32 => { inst::ParameterValue::INT32(parse_data_field::<i32>(&field, &mut message_buf)?) }
-                BaseType::FLOAT => { inst::ParameterValue::FLOAT(parse_data_field::<f32>(&field, &mut message_buf)?) }
+                BaseType::INT32 => { inst::ParameterValue::INT32(parse_data_field::<i32>(&mut message_buf)?) }
+                BaseType::FLOAT => { inst::ParameterValue::FLOAT(parse_data_field::<f32>(&mut message_buf)?) }
                 other => {
                     return Err(ULogError::UnknownParameterType(format!("Received default parameter message with unsupported type ({raw_key}->{other:?}). Ignoring.").to_owned()))
                 }
@@ -826,7 +747,7 @@ impl<R: Read> ULogParser<R> {
             log::debug!("INFO {:?} {}:\t{:?}", field.r#type, &field.name, value);
 
             Ok(msg::Parameter {
-                key: field.name,
+                key: field.name.to_string(),
                 r#type: field.r#type,
                 value,
             })
@@ -852,8 +773,8 @@ impl<R: Read> ULogParser<R> {
             ));
         } else {
             let value: inst::ParameterValue = match field.r#type.base_type {
-                BaseType::INT32 => { inst::ParameterValue::INT32(parse_data_field::<i32>(&field, &mut message_buf)?) }
-                BaseType::FLOAT => { inst::ParameterValue::FLOAT(parse_data_field::<f32>(&field, &mut message_buf)?) }
+                BaseType::INT32 => { inst::ParameterValue::INT32(parse_data_field::<i32>(&mut message_buf)?) }
+                BaseType::FLOAT => { inst::ParameterValue::FLOAT(parse_data_field::<f32>(&mut message_buf)?) }
                 other => {
                     return Err(ULogError::UnknownParameterType(format!("Received default parameter message with unsupported type ({raw_key}->{other:?}). Ignoring.").to_owned()))
                 }
@@ -862,7 +783,7 @@ impl<R: Read> ULogParser<R> {
             log::debug!("INFO {:?} {}:\t{:?}", field.r#type, &field.name, value);
 
             Ok(msg::DefaultParameter {
-                key: field.name,
+                key: field.name.to_string(),
                 default_types,
                 r#type: field.r#type,
                 value,
@@ -941,6 +862,22 @@ impl From<ULogMessageType> for u8 {
     }
 }
 
+impl LoggedData {
+    pub fn filter_fields(&mut self, include_timestamp: bool, include_padding: bool) {
+        self.data.fields.retain(|field| {
+            if field.name.as_ref() == "timestamp" {
+                return include_timestamp;
+            }
+
+            if field.name.starts_with("_padding") {
+                return include_padding;
+            }
+
+            true
+        });
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -949,7 +886,7 @@ mod tests {
 
     impl<R: std::io::Read> ULogParser<R> {
         pub fn insert_format(&mut self, message_name: &str, format: def::Format) {
-            self.formats.insert(message_name.to_string(), format);
+            self.formats.insert(message_name.to_string(), format.into());
         }
     }
 
@@ -1012,18 +949,3 @@ mod tests {
     }
 }
 
-impl LoggedData {
-    pub fn filter_fields(&mut self, include_timestamp: bool, include_padding: bool) {
-        self.data.fields.retain(|field| {
-            if field.name == "timestamp" {
-                return include_timestamp;
-            }
-
-            if field.name.starts_with("_padding") {
-                return include_padding;
-            }
-
-            true
-        });
-    }
-}

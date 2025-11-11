@@ -1,3 +1,4 @@
+use crate::model::CChar;
 use crate::errors::ULogError;
 use crate::model::inst;
 
@@ -77,7 +78,7 @@ impl_fromfield_scalar!(i64, ScalarI64);
 impl_fromfield_scalar!(f32, ScalarF32);
 impl_fromfield_scalar!(f64, ScalarF64);
 impl_fromfield_scalar!(bool, ScalarBool);
-impl_fromfield_scalar!(char, ScalarChar);
+impl_fromfield_scalar!(CChar, ScalarChar);
 
 // --- Vector impls ---
 impl_fromfield_array!(u8, ArrayU8);
@@ -91,7 +92,7 @@ impl_fromfield_array!(i64, ArrayI64);
 impl_fromfield_array!(f32, ArrayF32);
 impl_fromfield_array!(f64, ArrayF64);
 impl_fromfield_array!(bool, ArrayBool);
-impl_fromfield_array!(char, ArrayChar);
+impl_fromfield_array!(CChar, ArrayChar);
 
 impl<T> FromField for Vec<T>
 where
