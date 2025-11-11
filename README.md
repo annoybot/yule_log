@@ -10,7 +10,12 @@ A streaming [ULOG](https://docs.px4.io/main/en/dev_log/ulog_file_format.html) pa
 - **Binary fidelity:** Can parse and re-emit a ULog file byte-for-byte identical to the original.
 - **Safe and robust:** Full Rust type safety with comprehensive error handling.
 
-## 🌟Derive API
+## 🌟Improved performance
+
+Version `0.4.0` is now 3.7× faster than the previous release `0.3.3`. This was accomplished through optimising
+the memory representation of the parsing results, which introduces minor breaking changes.
+
+## Derive API
 
 The `macros` feature provides a serde-like experience, allowing ULOG data to be mapped directly into your own structs.
 

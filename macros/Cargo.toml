@@ -5,7 +5,7 @@ keywords = ["parser", "ulog", "px4"]
 readme = "README.md"
 license = "MIT"
 repository = "https://github.com/annoybot/yule_log"
-version = "0.3.3"
+version = "0.4.0"
 edition = "2021"
 publish = true
 
