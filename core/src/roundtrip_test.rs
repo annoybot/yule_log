@@ -27,6 +27,8 @@ mod tests {
             let reader =
                 BufReader::new(File::open(&input_path).expect("Failed to open input file"));
 
+            // ⚠️ This test will pass _only_ if all LoggedData messages are included.
+            // If a subscription_allow_list is set, then IgnoredMessages will not be emitted.
             let parser = ULogParserBuilder::new(reader)
                 .include_header(true)
                 .include_timestamp(true)

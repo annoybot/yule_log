@@ -23,10 +23,7 @@ pub mod msg {
             msg_type: u8,
             message_contents: Vec<u8>,
         },
-        Ignored {
-            msg_type: u8,
-            message_contents: Vec<u8>,
-        },
+        Ignored {msg_type: u8},
     }
 
     #[derive(Debug, Copy, Clone)]
@@ -274,7 +271,7 @@ pub mod inst {
         ScalarF64(f64),
         ScalarBool(bool),
         ScalarChar(CChar),
-        ScalarOther(Rc<inst::Format>),
+        ScalarOther(Rc<inst::Format>), //Storing a pointer to this large object significantly reduces the size of the enum.
 
         // Typed arrays
         ArrayU8(Vec<u8>),

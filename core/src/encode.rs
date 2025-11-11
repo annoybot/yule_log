@@ -72,10 +72,8 @@ impl UlogMessage {
             UlogMessage::DropoutMark(dropout) => dropout.encode(writer),
             UlogMessage::Unhandled {
                 message_contents, ..
-            }
-            | UlogMessage::Ignored {
-                message_contents, ..
             } => writer.write_all(message_contents),
+            UlogMessage::Ignored { msg_type: _ } => { Ok(())},
             UlogMessage::Header(_) => unreachable!("Handled separately"),
         }
     }
