@@ -1,5 +1,16 @@
 pub(crate) const MAGIC: [u8; 7] = [b'U', b'L', b'o', b'g', 0x01, 0x12, 0x35];
 
+// Alias controlling which type to use for shared ownership of strings and structs.
+// Since the parser is single-threaded, `Rc` is used by default.
+// When the `thread_safe` feature is enabled, `Arc` is used instead,
+// allowing model objects to be shared safely across threads with a small (~2%) performance cost.
+// Thread safety is verified by the `all_types_are_send_and_sync()` test below when this feature is enabled.
+#[cfg(feature = "thread_safe")]
+pub type Shared<T> = std::sync::Arc<T>;
+#[cfg(not(feature = "thread_safe"))]
+pub type Shared<T> = std::rc::Rc<T>;
+
+
 pub mod msg {
     use crate::errors::ULogError;
     use crate::model::MAGIC;
@@ -184,7 +195,7 @@ pub mod msg {
 /// See also the `inst` module, which defines structs that carry actual data, which are analogues
 /// of the structures defined in this module.
 pub mod def {
-    use std::sync::Arc;
+    use crate::model::Shared;
 
     #[derive(Debug, Clone, PartialEq)]
     pub struct Format {
@@ -195,7 +206,7 @@ pub mod def {
 
     #[derive(Debug, Clone, PartialEq)]
     pub struct Field {
-        pub name: Arc<str>,
+        pub name: Shared<str>,
         pub r#type: TypeExpr,
     }
 
@@ -230,9 +241,8 @@ pub mod def {
 /// For example, `inst::Format` and `inst::Field` represent concrete data objects, which
 /// are instances of the type definitions described by `def::Format` and `def::Field`.
 pub mod inst {
-    use std::sync::Arc;
     use crate::model::def::TypeExpr;
-    use crate::model::{def, inst, CChar};
+    use crate::model::{def, inst, CChar, Shared};
 
     #[derive(Debug, Clone, PartialEq)]
     pub struct Format {
@@ -240,12 +250,12 @@ pub mod inst {
         pub name: String,
         pub fields: Vec<Field>,
         pub multi_id_index: Option<u8>,
-        pub def_format: Arc<def::Format>,
+        pub def_format: Shared<def::Format>,
     }
 
     #[derive(Debug, Clone, PartialEq)]
     pub struct Field {
-        pub name: Arc<str>,
+        pub name: Shared<str>,
         pub r#type: TypeExpr,
         pub value: FieldValue,
     }
@@ -271,7 +281,7 @@ pub mod inst {
         ScalarF64(f64),
         ScalarBool(bool),
         ScalarChar(CChar),
-        ScalarOther(Arc<inst::Format>), //Storing a pointer to this large object significantly reduces the size of the enum.
+        ScalarOther(Shared<inst::Format>), //Storing a pointer to this large object significantly reduces the size of the enum.
 
         // Typed arrays
         ArrayU8(Vec<u8>),
@@ -475,12 +485,13 @@ impl CCharSlice for Vec<CChar> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    fn assert_send_sync<T: Send + Sync>() {}
-
     #[test]
+    #[cfg(feature = "thread_safe")]
     fn all_types_are_send_and_sync() {
+        use crate::model::{def, inst, msg, CChar};
+
+        fn assert_send_sync<T: Send + Sync>() {}
+
         // msg
         assert_send_sync::<msg::UlogMessage>();
         assert_send_sync::<msg::FileHeader>();

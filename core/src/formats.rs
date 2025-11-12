@@ -1,7 +1,6 @@
-use std::sync::Arc;
 use crate::errors::ULogError;
 use crate::message_buf::MessageBuf;
-use crate::model::def;
+use crate::model::{def, Shared};
 use crate::tokenizer::Token;
 use crate::tokenizer::TokenList;
 
@@ -72,7 +71,7 @@ pub(crate) fn parse_field(token_list: &mut TokenList) -> Result<def::Field, ULog
     };
 
     Ok(def::Field {
-        name: Arc::from(field_name.to_string()),
+        name: Shared::from(field_name.to_string()),
         r#type: def::TypeExpr {
             base_type,
             array_size,
@@ -123,21 +122,21 @@ mod tests {
             name: "my_format".to_string(),
             fields: vec![
                 def::Field {
-                    name: Arc::from("timestamp"),
+                    name: Shared::from("timestamp"),
                     r#type: def::TypeExpr {
                         base_type: def::BaseType::UINT64,
                         array_size: None,
                     },
                 },
                 def::Field {
-                    name: Arc::from("is_happy"),
+                    name: Shared::from("is_happy"),
                     r#type: def::TypeExpr {
                         base_type: def::BaseType::BOOL,
                         array_size: None,
                     },
                 },
                 def::Field {
-                    name: Arc::from("pet_ids"),
+                    name: Shared::from("pet_ids"),
                     r#type: def::TypeExpr {
                         base_type: def::BaseType::UINT8,
                         array_size: Some(8),

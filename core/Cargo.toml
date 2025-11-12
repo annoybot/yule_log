@@ -27,6 +27,7 @@ yule_log_macros = { version = "=0.4.0", path = "../macros", optional = true}
 [features]
 default = []
 macros = ["yule_log_macros"]
+thread_safe = []
 
 [dev-dependencies]
 tempfile = "3.13"
