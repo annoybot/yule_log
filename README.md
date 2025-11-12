@@ -27,7 +27,7 @@ of that for you automatically.  The stream-oriented nature of the underlying par
 #### 1. Enable the feature in Cargo.toml
 
 ```toml
-yule_log = { version="0.3", features = ["macros"] }
+yule_log = { version="0.4", features = ["macros"] }
 ```
 
 #### 2. Map subscriptions to structs
@@ -57,7 +57,7 @@ By default, struct fields will be validated
 against the ULOG file, and any missing fields will cause an error.  This can be overriden by making a field an `Option<T>`, as shown above for `extra_field`.
 
 💡Subscription and field names can also be specified using the `#[yule_log]` attribute.  For
-more information refer to the [ULogData API docs](https://docs.rs/yule_log/0.3/yule_log/derive.ULogData.html).
+more information refer to the [ULogData API docs](https://docs.rs/yule_log/0.4/yule_log/derive.ULogData.html).
 
 #### 3. List all subscriptions in an enum
 
@@ -225,6 +225,16 @@ for result in parser {
 ```
 
 This example is also available in the `examples` directory as `simple.rs`.
+
+## Notes
+
+### Thread Safety Feature
+
+Enabling the optional `thread_safe` feature makes the parser’s data structures safe to use across threads.  
+
+Since the parser itself is single threaded, this feature is disabled by default.
+
+Enabling this feature has a small (~2%) runtime cost due to atomic operations.
 
 ## License
 

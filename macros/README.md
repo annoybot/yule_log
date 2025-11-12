@@ -19,7 +19,7 @@ For more information, see: [yule_log](https://crates.io/crates/yule_log).
 ### Cargo.toml
 
 ```toml
-yule_log = { version = "0.3", features = ["macros"] }
+yule_log = { version = "0.4", features = ["macros"] }
 ```
 
 ### Define mappings
