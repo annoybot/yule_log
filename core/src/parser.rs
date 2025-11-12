@@ -3,7 +3,7 @@
 use crate::field_helpers::parse_primitive_array;
 use std::collections::{HashMap, HashSet};
 use std::io::Read;
-use std::rc::Rc;
+use std::sync::Arc;
 use byteorder::{ByteOrder, LittleEndian};
 
 use crate::datastream::DataStream;
@@ -23,7 +23,7 @@ pub struct ULogParser<R: Read> {
     state: State,
     file_header: Option<FileHeader>,
     overridden_params: HashSet<String>,
-    pub formats: HashMap<String, Rc<def::Format>>,
+    pub formats: HashMap<String, Arc<def::Format>>,
     subscriptions: HashMap<u16, msg::Subscription>,
     message_name_with_multi_id: HashSet<String>,
     subscription_filter: SubscriptionFilter,
@@ -134,7 +134,7 @@ impl<R: Read> ULogParser<R> {
         self.subscription_filter = SubscriptionFilter::new(set);
     }
 
-    pub fn get_format(&self, message_name: &str) -> Result<Rc<def::Format>, ULogError> {
+    pub fn get_format(&self, message_name: &str) -> Result<Arc<def::Format>, ULogError> {
         match self.formats.get(message_name) {
             None => Err(UndefinedFormat(message_name.to_owned())),
             Some(format) => Ok(format.clone()),
@@ -213,7 +213,7 @@ impl<R: Read> ULogParser<R> {
                             println!("Heartbeat {format}");
                         }
 
-                        self.formats.insert(format.name.clone(), Rc::new(format.clone()));
+                        self.formats.insert(format.name.clone(), Arc::new(format.clone()));
                     }
                     UlogMessage::AddSubscription(ref sub) => {
                         self.subscriptions.insert(sub.msg_id, sub.clone());
@@ -414,7 +414,7 @@ impl<R: Read> ULogParser<R> {
 
     fn parse_data_message_sub(
         &self,
-        format: Rc<def::Format>,
+        format: Arc<def::Format>,
         message_buf: &mut MessageBuf,
     ) -> Result<inst::Format, ULogError> {
         let mut fields: Vec<inst::Field> = Vec::with_capacity(format.fields.len());
@@ -444,7 +444,7 @@ impl<R: Read> ULogParser<R> {
             }
 
             fields.push(inst::Field {
-                name: Rc::from(field.name.clone()),
+                name: Arc::from(field.name.clone()),
                 r#type: field.r#type.clone(),
                 value,
             });
@@ -478,7 +478,7 @@ impl<R: Read> ULogParser<R> {
             if self.include_padding {
                 let array = message_buf.advance(array_size)?.to_vec();
                 return Ok( Some( inst::Field {
-                    name: Rc::from(field.name.clone()),
+                    name: Arc::from(field.name.clone()),
                     r#type: field.r#type.clone(),
                     value: inst::FieldValue::ArrayU8(array),
                 }));

@@ -193,7 +193,7 @@ pub fn derive_logged_struct(input: TokenStream) -> TokenStream {
 
         quote! {
             {
-                let map: std::collections::HashMap<std::rc::Rc<str>, usize> =
+                let map: std::collections::HashMap<std::sync::Arc<str>, usize> =
                     format.fields.iter().enumerate()
                         .map(|(i, f)| (f.name.clone(), i))
                         .collect();

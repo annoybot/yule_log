@@ -184,7 +184,7 @@ pub mod msg {
 /// See also the `inst` module, which defines structs that carry actual data, which are analogues
 /// of the structures defined in this module.
 pub mod def {
-    use std::rc::Rc;
+    use std::sync::Arc;
 
     #[derive(Debug, Clone, PartialEq)]
     pub struct Format {
@@ -195,7 +195,7 @@ pub mod def {
 
     #[derive(Debug, Clone, PartialEq)]
     pub struct Field {
-        pub name: Rc<str>,
+        pub name: Arc<str>,
         pub r#type: TypeExpr,
     }
 
@@ -230,7 +230,7 @@ pub mod def {
 /// For example, `inst::Format` and `inst::Field` represent concrete data objects, which
 /// are instances of the type definitions described by `def::Format` and `def::Field`.
 pub mod inst {
-    use std::rc::Rc;
+    use std::sync::Arc;
     use crate::model::def::TypeExpr;
     use crate::model::{def, inst, CChar};
 
@@ -240,12 +240,12 @@ pub mod inst {
         pub name: String,
         pub fields: Vec<Field>,
         pub multi_id_index: Option<u8>,
-        pub def_format: Rc<def::Format>,
+        pub def_format: Arc<def::Format>,
     }
 
     #[derive(Debug, Clone, PartialEq)]
     pub struct Field {
-        pub name: Rc<str>,
+        pub name: Arc<str>,
         pub r#type: TypeExpr,
         pub value: FieldValue,
     }
@@ -271,7 +271,7 @@ pub mod inst {
         ScalarF64(f64),
         ScalarBool(bool),
         ScalarChar(CChar),
-        ScalarOther(Rc<inst::Format>), //Storing a pointer to this large object significantly reduces the size of the enum.
+        ScalarOther(Arc<inst::Format>), //Storing a pointer to this large object significantly reduces the size of the enum.
 
         // Typed arrays
         ArrayU8(Vec<u8>),
@@ -472,5 +472,46 @@ impl CCharSlice for Vec<CChar> {
         self.as_slice().to_string_lossy_trimmed()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn assert_send_sync<T: Send + Sync>() {}
+
+    #[test]
+    fn all_types_are_send_and_sync() {
+        // msg
+        assert_send_sync::<msg::UlogMessage>();
+        assert_send_sync::<msg::FileHeader>();
+        assert_send_sync::<msg::FlagBits>();
+        assert_send_sync::<msg::LoggedString>();
+        assert_send_sync::<msg::LogLevel>();
+        assert_send_sync::<msg::Subscription>();
+        assert_send_sync::<msg::Info>();
+        assert_send_sync::<msg::MultiInfo>();
+        assert_send_sync::<msg::Parameter>();
+        assert_send_sync::<msg::DefaultParameter>();
+        assert_send_sync::<msg::DefaultType>();
+        assert_send_sync::<msg::LoggedData>();
+        assert_send_sync::<msg::Dropout>();
+
+        // def
+        assert_send_sync::<def::Format>();
+        assert_send_sync::<def::Field>();
+        assert_send_sync::<def::TypeExpr>();
+        assert_send_sync::<def::BaseType>();
+
+        // inst
+        assert_send_sync::<inst::Format>();
+        assert_send_sync::<inst::Field>();
+        assert_send_sync::<inst::FieldValue>();
+        assert_send_sync::<inst::ParameterValue>();
+
+        // root
+        assert_send_sync::<CChar>();
+    }
+}
+
 
 
