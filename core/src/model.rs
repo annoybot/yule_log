@@ -199,7 +199,7 @@ pub mod def {
 
     #[derive(Debug, Clone, PartialEq)]
     pub struct Format {
-        pub name: String,
+        pub name: Shared<str>,
         pub fields: Vec<Field>,
         pub padding: usize,
     }
@@ -247,7 +247,7 @@ pub mod inst {
     #[derive(Debug, Clone, PartialEq)]
     pub struct Format {
         pub timestamp: Option<u64>,
-        pub name: String,
+        pub name: Shared<str>,
         pub fields: Vec<Field>,
         pub multi_id_index: Option<u8>,
         pub def_format: Shared<def::Format>,
@@ -523,6 +523,3 @@ mod tests {
         assert_send_sync::<CChar>();
     }
 }
-
-
-

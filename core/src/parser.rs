@@ -22,7 +22,7 @@ pub struct ULogParser<R: Read> {
     state: State,
     file_header: Option<FileHeader>,
     overridden_params: HashSet<String>,
-    pub formats: HashMap<String, Shared<def::Format>>,
+    pub formats: HashMap<Shared<str>, Shared<def::Format>>,
     subscriptions: HashMap<u16, msg::Subscription>,
     message_name_with_multi_id: HashSet<String>,
     subscription_filter: SubscriptionFilter,
@@ -885,7 +885,7 @@ mod tests {
 
     impl<R: std::io::Read> ULogParser<R> {
         pub fn insert_format(&mut self, message_name: &str, format: def::Format) {
-            self.formats.insert(message_name.to_string(), format.into());
+            self.formats.insert(message_name.into(), format.into());
         }
     }
 
@@ -922,7 +922,7 @@ mod tests {
         parser.insert_format(
             "my_message",
             def::Format {
-                name: "".to_string(),
+                name: "".into(),
                 fields: vec![],
                 padding: 0,
             },

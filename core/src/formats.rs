@@ -35,7 +35,7 @@ pub(crate) fn parse_format(message_buf: MessageBuf) -> Result<def::Format, ULogE
     }
 
     Ok(def::Format {
-        name: name.to_string(),
+        name: name.into(),
         fields,
         padding: 0,
     })
@@ -119,7 +119,7 @@ mod tests {
 
         // Assert the result is Ok and has the expected structure
         let expected_format = def::Format {
-            name: "my_format".to_string(),
+            name: "my_format".into(),
             fields: vec![
                 def::Field {
                     name: Shared::from("timestamp"),

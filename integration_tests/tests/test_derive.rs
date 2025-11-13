@@ -156,7 +156,7 @@ fn test_add_subscription() -> Result<(), Box<dyn std::error::Error>> {
     for msg_res in stream {
         match msg_res {
             Ok(LoggedMessages::Other(UlogMessage::LoggedData(data)))
-                if data.data.name == EXTRA_SUBSCR_NAME =>
+                if data.data.name.as_ref() == EXTRA_SUBSCR_NAME =>
             {
                 gps_message_present = true;
                 println!("{data:?}");
@@ -299,7 +299,7 @@ fn test_extend_subscriptions() -> Result<(), Box<dyn std::error::Error>> {
                     v.timestamp, v.x, v.y, v.z
                 );
             }
-            LoggedMessages::Other(UlogMessage::LoggedData(data)) => match data.data.name.as_str() {
+            LoggedMessages::Other(UlogMessage::LoggedData(data)) => match data.data.name.as_ref() {
                 "vehicle_gps_position" => {
                     flags.gps_seen = true;
                     println!("Extra GPS LoggedData: {:?}", data);

@@ -72,7 +72,7 @@ fn test_not_added_subscription_absent() {
     for msg_res in stream {
         if let Ok(LoggedMessages::Other(UlogMessage::LoggedData(data))) = msg_res {
             assert_ne!(
-                data.data.name, "vehicle_gps_position",
+                data.data.name.to_string(), "vehicle_gps_position",
                 "vehicle_gps_position should not appear."
             );
         }
